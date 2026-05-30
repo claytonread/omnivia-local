@@ -15,8 +15,10 @@ The API uses a layered architecture:
 Startup initializes: database, embedding service (FastEmbed), vector store (Qdrant)
 """
 
+import json
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -350,9 +352,6 @@ def create_node(node_data: NodeCreate, db: Session = Depends(get_db)):
     - constraint: Limitation or requirement
     - system: Technical or organizational system
     """
-    import uuid
-    import json
-
     node = Node(
         id=str(uuid.uuid4()),
         node_type=node_data.node_type,
@@ -399,7 +398,6 @@ def list_nodes(
         query = query.filter(Node.tags.contains(tag))
     nodes = query.order_by(Node.created_at.desc()).limit(limit).all()
 
-    import json
     return [
         NodeResponse(
             id=n.id,
@@ -423,9 +421,7 @@ def get_node(node_id: str, db: Session = Depends(get_db)):
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
-    import json
     return NodeResponse(
-        id=node.id,
         node_type=node.node_type,
         title=node.title,
         body=node.body,
@@ -454,9 +450,6 @@ def create_edge(edge_data: EdgeCreate, db: Session = Depends(get_db)):
 
     Both source and target nodes must exist before creating the edge.
     """
-    import uuid
-    import json
-
     # Validate that both nodes exist before creating the edge
     source_node = db.query(Node).filter(Node.id == edge_data.source_node_id).first()
     if not source_node:
@@ -508,7 +501,6 @@ def list_edges(
         query = query.filter(Edge.source_node_id == source_node_id)
     edges = query.order_by(Edge.created_at.desc()).limit(limit).all()
 
-    import json
     return [
         EdgeResponse(
             id=e.id,
@@ -536,7 +528,6 @@ def get_node_edges(node_id: str, db: Session = Depends(get_db)):
         (Edge.source_node_id == node_id) | (Edge.target_node_id == node_id)
     ).all()
 
-    import json
     return {
         "node_id": node_id,
         "edges": [
@@ -574,9 +565,6 @@ def create_source(source_data: SourceCreate, db: Session = Depends(get_db)):
     - chat_export: AI conversation export
     - manual: User-entered content
     """
-    import uuid
-    import json
-
     source = Source(
         id=str(uuid.uuid4()),
         source_type=source_data.source_type,
@@ -617,7 +605,6 @@ def list_sources(
         query = query.filter(Source.source_type == source_type)
     sources = query.order_by(Source.imported_at.desc()).limit(limit).all()
 
-    import json
     return [
         SourceResponse(
             id=s.id,
@@ -641,9 +628,7 @@ def get_source(source_id: str, db: Session = Depends(get_db)):
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
 
-    import json
     return SourceResponse(
-        id=source.id,
         source_type=source.source_type,
         uri=source.uri,
         title=source.title,
