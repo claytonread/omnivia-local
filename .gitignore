@@ -1,54 +1,217 @@
+# ==========================================================
+# OmniVia source-control policy
+# Track product source, approved product folders, docs,
+# standard repo metadata, and required runtime/build config.
+# Ignore everything else by default.
+# ==========================================================
+
 # Ignore everything by default
 *
 
-# Allow this file
+# ----------------------------------------------------------
+# Always allow Git control files
+# ----------------------------------------------------------
 !.gitignore
+!.gitattributes
 
-# Allow product source directories
+# ----------------------------------------------------------
+# Standard repository files
+# ----------------------------------------------------------
+!README.md
+!LICENSE
+!LICENSE.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!CODE_OF_CONDUCT.md
+!SECURITY.md
+!SUPPORT.md
+!CLAUDE.md
+
+# ----------------------------------------------------------
+# Approved product folders
+# ----------------------------------------------------------
+!apps/
+!apps/**
+
+!packages/
+!packages/**
+
 !services/
-!services/api/
-!services/api/**
-!services/mcp-server/
-!services/mcp-server/**
-!services/embedding-service/
-!services/ingestion-worker/
+!services/**
 
-# Allow infrastructure config
+!scripts/
+!scripts/**
+
+!docs/
+!docs/**
+
+!data/
+!data/.gitignore
+
+# Infrastructure
 !infra/
-!infra/docker/
-!infra/docker/docker-compose.local.yml
+!infra/**
 
-# Allow required package files
-!services/api/requirements.txt
-!services/api/pyproject.toml
-!services/mcp-server/requirements.txt
+# ----------------------------------------------------------
+# Required root runtime/build/deployment config
+# ----------------------------------------------------------
+!package.json
+!package-lock.json
 
-# Allow Dockerfiles
-!services/api/Dockerfile
-!services/mcp-server/Dockerfile
+!pyproject.toml
+!requirements.txt
 
-# Always ignore real env files
+!docker-compose.yml
+!docker-compose.yaml
+!docker-compose.*.yml
+!docker-compose.*.yaml
+!Dockerfile
+!.dockerignore
+
+!tsconfig.json
+!tsconfig.*.json
+
+!ruff.toml
+!.ruff.toml
+!pytest.ini
+
+# ----------------------------------------------------------
+# Safe environment examples only
+# ----------------------------------------------------------
+!.env.example
+!**/.env.example
+
+# ----------------------------------------------------------
+# Always ignore real environment files and secrets
+# ----------------------------------------------------------
 .env
 .env.*
 !.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
-# Always ignore dependencies, build output and caches
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.secret
+*secret*
+*credentials*
+credentials.json
+
+# ----------------------------------------------------------
+# Always ignore dependency folders
+# ----------------------------------------------------------
+node_modules/
+**/node_modules/
+
+.venv/
+venv/
+**/.venv/
+**/venv/
+
+# ----------------------------------------------------------
+# Always ignore build output and generated artefacts
+# ----------------------------------------------------------
+dist/
+build/
+out/
+.next/
+.nuxt/
+.turbo/
+coverage/
+**/dist/
+**/build/
+**/.next/
+**/.turbo/
+**/coverage/
+
+# ----------------------------------------------------------
+# Always ignore caches
+# ----------------------------------------------------------
 __pycache__/
-*.pyc
-*.pyo
+**/__pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.venv/
-venv/
-node_modules/
-dist/
-build/
-*.egg-info/
+.cache/
+.parcel-cache/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.cache/
 
-# Always ignore local data
-data/
+# ----------------------------------------------------------
+# Always ignore logs and temp files
+# ----------------------------------------------------------
+*.log
+logs/
+**/logs/
+tmp/
+temp/
+**/tmp/
+**/temp/
 
-# Always ignore generated/secrets files
+.DS_Store
+Thumbs.db
+
+# ----------------------------------------------------------
+# Always ignore local databases and runtime state
+# Especially important under /data
+# ----------------------------------------------------------
 *.sqlite
 *.sqlite3
+*.db
+*.db-journal
+*.duckdb
+*.parquet
+*.qdrant
+qdrant_storage/
+storage/
+uploads/
+private/
+local/
+runtime/
+**/qdrant_storage/
+**/storage/
+**/uploads/
+**/private/
+**/local/
+**/runtime/
+
+# ----------------------------------------------------------
+# Ignore generated binary/document/export artefacts
+# ----------------------------------------------------------
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+
+# ----------------------------------------------------------
+# Ignore AI prompts, planning, research, external
+# ----------------------------------------------------------
+PROMPTS/
+.claude/
+external/
+research/
+planning/
+exports/
+screenshots/
+features/
+specs/
+constitution.md
+implementation-roadmap.md
+PROJECT_TREE.md
+RUN_THIS.md
+RUN_EXACTLY_THIS.md
+README_FIRST.md

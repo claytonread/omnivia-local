@@ -1,0 +1,4 @@
+# Preserve data directory structure
+# Ignore all files except this gitkeep
+*
+!.gitignore
