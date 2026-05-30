@@ -9,7 +9,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import sessionmaker, Session
 
 from services.api.database import init_db, get_engine
-from services.api.models import MemoryCreate, Memory
+from services.api.models import (
+    MemoryCreate, Memory,
+    NodeCreate, NodeResponse,
+    EdgeCreate, EdgeResponse,
+    SourceCreate, SourceResponse,
+    Node, Edge, Source,
+)
 from services.api.services.memory_service import MemoryService
 from services.api.services.ingestion import scan_workspace
 from services.api.services.embedding import EmbeddingService
@@ -257,6 +263,305 @@ def scan_workspace_endpoint(request: WorkspaceScanRequest):
     except Exception as e:
         logger.error(f"Workspace scan error: {e}")
         raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
+
+
+# =============================================================================
+# Node Endpoints
+# =============================================================================
+
+def _get_node_service(db: Session):
+    """Get a NodeService instance (placeholder for future implementation)."""
+    # TODO: Implement NodeService with full CRUD
+    return db
+
+
+@app.post("/nodes", response_model=NodeResponse, status_code=201)
+def create_node(node_data: NodeCreate, db: Session = Depends(get_db)):
+    """Create a new node in the knowledge graph.
+
+    Nodes represent structured knowledge entities like concepts, people,
+    projects, or decisions.
+    """
+    import uuid
+    import json
+
+    node = Node(
+        id=str(uuid.uuid4()),
+        node_type=node_data.node_type,
+        title=node_data.title,
+        body=node_data.body,
+        tags=node_data.tags,
+        source_ids=json.dumps(node_data.source_ids) if node_data.source_ids else None,
+        metadata_json=json.dumps(node_data.metadata) if node_data.metadata else None,
+    )
+    db.add(node)
+    db.commit()
+    db.refresh(node)
+
+    logger.info(f"Created node {node.id} of type {node.node_type}")
+    return NodeResponse(
+        id=node.id,
+        node_type=node.node_type,
+        title=node.title,
+        body=node.body,
+        tags=node.tags,
+        source_ids=json.loads(node.source_ids) if node.source_ids else None,
+        created_at=node.created_at,
+        updated_at=node.updated_at,
+        metadata=json.loads(node.metadata_json) if node.metadata_json else None,
+    )
+
+
+@app.get("/nodes", response_model=list[NodeResponse])
+def list_nodes(
+    node_type: Optional[str] = None,
+    tag: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """List all nodes, optionally filtered by type or tag."""
+    query = db.query(Node)
+    if node_type:
+        query = query.filter(Node.node_type == node_type)
+    if tag:
+        query = query.filter(Node.tags.contains(tag))
+    nodes = query.order_by(Node.created_at.desc()).limit(limit).all()
+
+    import json
+    return [
+        NodeResponse(
+            id=n.id,
+            node_type=n.node_type,
+            title=n.title,
+            body=n.body,
+            tags=n.tags,
+            source_ids=json.loads(n.source_ids) if n.source_ids else None,
+            created_at=n.created_at,
+            updated_at=n.updated_at,
+            metadata=json.loads(n.metadata_json) if n.metadata_json else None,
+        )
+        for n in nodes
+    ]
+
+
+@app.get("/nodes/{node_id}", response_model=NodeResponse)
+def get_node(node_id: str, db: Session = Depends(get_db)):
+    """Get a specific node by ID."""
+    node = db.query(Node).filter(Node.id == node_id).first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    import json
+    return NodeResponse(
+        id=node.id,
+        node_type=node.node_type,
+        title=node.title,
+        body=node.body,
+        tags=node.tags,
+        source_ids=json.loads(node.source_ids) if node.source_ids else None,
+        created_at=node.created_at,
+        updated_at=node.updated_at,
+        metadata=json.loads(node.metadata_json) if node.metadata_json else None,
+    )
+
+
+# =============================================================================
+# Edge Endpoints
+# =============================================================================
+
+@app.post("/edges", response_model=EdgeResponse, status_code=201)
+def create_edge(edge_data: EdgeCreate, db: Session = Depends(get_db)):
+    """Create a new edge connecting two nodes.
+
+    Edges define relationships in the knowledge graph like
+    'relates_to', 'depends_on', or 'supports'.
+    """
+    import uuid
+    import json
+
+    # Verify both nodes exist
+    source_node = db.query(Node).filter(Node.id == edge_data.source_node_id).first()
+    if not source_node:
+        raise HTTPException(status_code=404, detail=f"Source node {edge_data.source_node_id} not found")
+
+    target_node = db.query(Node).filter(Node.id == edge_data.target_node_id).first()
+    if not target_node:
+        raise HTTPException(status_code=404, detail=f"Target node {edge_data.target_node_id} not found")
+
+    edge = Edge(
+        id=str(uuid.uuid4()),
+        source_node_id=edge_data.source_node_id,
+        target_node_id=edge_data.target_node_id,
+        relationship_type=edge_data.relationship_type,
+        direction=edge_data.direction,
+        weight=edge_data.weight or 0.5,
+        source_ids=json.dumps(edge_data.source_ids) if edge_data.source_ids else None,
+    )
+    db.add(edge)
+    db.commit()
+    db.refresh(edge)
+
+    logger.info(f"Created edge {edge.id}: {edge.source_node_id} --[{edge.relationship_type}]--> {edge.target_node_id}")
+
+    return EdgeResponse(
+        id=edge.id,
+        source_node_id=edge.source_node_id,
+        target_node_id=edge.target_node_id,
+        relationship_type=edge.relationship_type,
+        direction=edge.direction,
+        weight=edge.weight,
+        source_ids=json.loads(edge.source_ids) if edge.source_ids else None,
+        created_at=edge.created_at,
+    )
+
+
+@app.get("/edges", response_model=list[EdgeResponse])
+def list_edges(
+    relationship_type: Optional[str] = None,
+    source_node_id: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """List all edges, optionally filtered by type or source node."""
+    query = db.query(Edge)
+    if relationship_type:
+        query = query.filter(Edge.relationship_type == relationship_type)
+    if source_node_id:
+        query = query.filter(Edge.source_node_id == source_node_id)
+    edges = query.order_by(Edge.created_at.desc()).limit(limit).all()
+
+    import json
+    return [
+        EdgeResponse(
+            id=e.id,
+            source_node_id=e.source_node_id,
+            target_node_id=e.target_node_id,
+            relationship_type=e.relationship_type,
+            direction=e.direction,
+            weight=e.weight,
+            source_ids=json.loads(e.source_ids) if e.source_ids else None,
+            created_at=e.created_at,
+        )
+        for e in edges
+    ]
+
+
+@app.get("/nodes/{node_id}/edges")
+def get_node_edges(node_id: str, db: Session = Depends(get_db)):
+    """Get all edges connected to a specific node."""
+    edges = db.query(Edge).filter(
+        (Edge.source_node_id == node_id) | (Edge.target_node_id == node_id)
+    ).all()
+
+    import json
+    return {
+        "node_id": node_id,
+        "edges": [
+            EdgeResponse(
+                id=e.id,
+                source_node_id=e.source_node_id,
+                target_node_id=e.target_node_id,
+                relationship_type=e.relationship_type,
+                direction=e.direction,
+                weight=e.weight,
+                source_ids=json.loads(e.source_ids) if e.source_ids else None,
+                created_at=e.created_at,
+            )
+            for e in edges
+        ],
+        "count": len(edges),
+    }
+
+
+# =============================================================================
+# Source Endpoints
+# =============================================================================
+
+@app.post("/sources", response_model=SourceResponse, status_code=201)
+def create_source(source_data: SourceCreate, db: Session = Depends(get_db)):
+    """Register a new source document or artefact.
+
+    Sources track the origin of ingested content for provenance.
+    """
+    import uuid
+    import json
+
+    source = Source(
+        id=str(uuid.uuid4()),
+        source_type=source_data.source_type,
+        uri=source_data.uri,
+        title=source_data.title,
+        file_hash=source_data.file_hash,
+        file_size=source_data.file_size,
+        metadata_json=json.dumps(source_data.metadata) if source_data.metadata else None,
+    )
+    db.add(source)
+    db.commit()
+    db.refresh(source)
+
+    logger.info(f"Created source {source.id}: {source.uri}")
+
+    return SourceResponse(
+        id=source.id,
+        source_type=source.source_type,
+        uri=source.uri,
+        title=source.title,
+        file_hash=source.file_hash,
+        file_size=source.file_size,
+        imported_at=source.imported_at,
+        last_indexed_at=source.last_indexed_at,
+        metadata=json.loads(source.metadata_json) if source.metadata_json else None,
+    )
+
+
+@app.get("/sources", response_model=list[SourceResponse])
+def list_sources(
+    source_type: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """List all sources, optionally filtered by type."""
+    query = db.query(Source)
+    if source_type:
+        query = query.filter(Source.source_type == source_type)
+    sources = query.order_by(Source.imported_at.desc()).limit(limit).all()
+
+    import json
+    return [
+        SourceResponse(
+            id=s.id,
+            source_type=s.source_type,
+            uri=s.uri,
+            title=s.title,
+            file_hash=s.file_hash,
+            file_size=s.file_size,
+            imported_at=s.imported_at,
+            last_indexed_at=s.last_indexed_at,
+            metadata=json.loads(s.metadata_json) if s.metadata_json else None,
+        )
+        for s in sources
+    ]
+
+
+@app.get("/sources/{source_id}", response_model=SourceResponse)
+def get_source(source_id: str, db: Session = Depends(get_db)):
+    """Get a specific source by ID."""
+    source = db.query(Source).filter(Source.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    import json
+    return SourceResponse(
+        id=source.id,
+        source_type=source.source_type,
+        uri=source.uri,
+        title=source.title,
+        file_hash=source.file_hash,
+        file_size=source.file_size,
+        imported_at=source.imported_at,
+        last_indexed_at=source.last_indexed_at,
+        metadata=json.loads(source.metadata_json) if source.metadata_json else None,
+    )
 
 
 if __name__ == "__main__":
