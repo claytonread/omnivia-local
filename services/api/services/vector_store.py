@@ -1,6 +1,6 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, SearchParams
-from typing import List, Optional, Dict, Any
+from qdrant_client.models import Distance, PointStruct
+from typing import List, Dict, Any
 import uuid
 
 

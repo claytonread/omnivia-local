@@ -5,12 +5,13 @@ from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine
+from pydantic import BaseModel
 from sqlalchemy.orm import sessionmaker, Session
 
-from services.api.database import Base, init_db, get_engine
+from services.api.database import init_db, get_engine
 from services.api.models import MemoryCreate, Memory
 from services.api.services.memory_service import MemoryService
+from services.api.services.ingestion import scan_workspace
 from services.api.services.embedding import EmbeddingService
 from services.api.services.vector_store import VectorStore
 
@@ -184,6 +185,78 @@ def update_memory_status(
     if not memory:
         raise HTTPException(status_code=404, detail="Memory not found")
     return memory
+
+
+# =============================================================================
+# Ingestion Endpoints
+# =============================================================================
+
+
+class WorkspaceScanRequest(BaseModel):
+    """Request to scan a local workspace path."""
+    workspace_path: str
+    max_files: int = 10000
+    follow_symlinks: bool = False
+
+
+class FileInventoryItem(BaseModel):
+    """One file entry in the scan inventory."""
+    path: str
+    extension: str
+    size: int
+    modified_ms: int
+    file_type: str
+    parse_status: str
+
+
+class WorkspaceScanResponse(BaseModel):
+    """Response from scanning a workspace."""
+    workspace_path: str
+    total_files: int
+    supported_files: int
+    unsupported_files: int
+    errors: int
+    scan_duration_ms: int
+    items: list[FileInventoryItem]
+
+
+@app.post("/ingest/scan", response_model=WorkspaceScanResponse)
+def scan_workspace_endpoint(request: WorkspaceScanRequest):
+    """Scan a local workspace and produce a file inventory.
+
+    Returns metadata about all discoverable files without modifying them.
+    Supported file types: markdown (.md, .markdown), plain text (.txt)
+    """
+    try:
+        result = scan_workspace(
+            workspace_path=request.workspace_path,
+            max_files=request.max_files,
+            follow_symlinks=request.follow_symlinks,
+        )
+        return WorkspaceScanResponse(
+            workspace_path=result.workspace_path,
+            total_files=result.total_files,
+            supported_files=result.supported_files,
+            unsupported_files=result.unsupported_files,
+            errors=result.errors,
+            scan_duration_ms=result.scan_duration_ms,
+            items=[
+                FileInventoryItem(
+                    path=item.path,
+                    extension=item.extension,
+                    size=item.size,
+                    modified_ms=item.modified_ms,
+                    file_type=item.file_type,
+                    parse_status=item.parse_status,
+                )
+                for item in result.items
+            ],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Workspace scan error: {e}")
+        raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
 
 
 if __name__ == "__main__":
