@@ -215,3 +215,16 @@ PROJECT_TREE.md
 RUN_THIS.md
 RUN_EXACTLY_THIS.md
 README_FIRST.md
+
+# ----------------------------------------------------------
+# Local/planning documentation (not ready for commit)
+# ----------------------------------------------------------
+docs/ai-context-layer.md
+docs/architecture.md
+docs/ingestion-pipeline.md
+docs/knowledge-graph-model.md
+docs/local-development.md
+docs/obsidian-import.md
+docs/product-vision.md
+docs/roadmap.md
+docs/security-and-privacy.md
