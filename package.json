@@ -1,0 +1,11 @@
+{
+  "name": "omnivia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first AI knowledge graph for teams that have outgrown Obsidian and need structured, AI-ready business knowledge management.",
+  "scripts": {
+    "dev": "echo \"Development server not configured yet\"",
+    "test": "echo \"Tests not configured yet\"",
+    "lint": "echo \"Linting not configured yet\""
+  }
+}
