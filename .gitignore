@@ -1,0 +1,54 @@
+# Ignore everything by default
+*
+
+# Allow this file
+!.gitignore
+
+# Allow product source directories
+!services/
+!services/api/
+!services/api/**
+!services/mcp-server/
+!services/mcp-server/**
+!services/embedding-service/
+!services/ingestion-worker/
+
+# Allow infrastructure config
+!infra/
+!infra/docker/
+!infra/docker/docker-compose.local.yml
+
+# Allow required package files
+!services/api/requirements.txt
+!services/api/pyproject.toml
+!services/mcp-server/requirements.txt
+
+# Allow Dockerfiles
+!services/api/Dockerfile
+!services/mcp-server/Dockerfile
+
+# Always ignore real env files
+.env
+.env.*
+!.env.example
+
+# Always ignore dependencies, build output and caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+node_modules/
+dist/
+build/
+*.egg-info/
+
+# Always ignore local data
+data/
+
+# Always ignore generated/secrets files
+*.sqlite
+*.sqlite3
