@@ -23,7 +23,7 @@ services:
   mcp-server:
     build:
       context: ../..
-      dockerfile: services/mcp-server/Dockerfile
+      dockerfile: services/mcp_server/Dockerfile
     ports:
       - "8081:8081"
     environment:
