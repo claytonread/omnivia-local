@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/omnivia-icon.svg" alt="OmniVia icon" width="96">
+  <img src="docs/assets/omnivia-icon.svg" alt="OmniVia icon" >
 </p>
 
 <h1 align="center">OmniVia</h1>
