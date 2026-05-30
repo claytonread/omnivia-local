@@ -1,3 +1,20 @@
+"""OmniVia API - Local-first AI memory layer for agents.
+
+This FastAPI application provides:
+- Memory management with vector embeddings for semantic search
+- Knowledge graph with nodes and edges for structured relationships
+- Source tracking for provenance and attribution
+- Workspace ingestion for file scanning
+
+The API uses a layered architecture:
+1. FastAPI handlers (this file) - HTTP request/response
+2. Services (memory_service.py, etc.) - Business logic
+3. Database (SQLite via SQLAlchemy) - Persistence
+4. Vector store (Qdrant) - Semantic search
+
+Startup initializes: database, embedding service (FastEmbed), vector store (Qdrant)
+"""
+
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -21,43 +38,54 @@ from services.api.services.ingestion import scan_workspace
 from services.api.services.embedding import EmbeddingService
 from services.api.services.vector_store import VectorStore
 
-# Configure logging
+# Configure logging with timestamps for debugging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Configuration from environment
+# Environment configuration for Docker and local development
 DB_PATH = os.getenv("OMNIVIA_DB_PATH", "/data/omnivia.sqlite")
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 
-# Global service instances (initialized on startup)
+# Global service instances - initialized once at startup
+# Using module-level globals avoids recreating expensive resources per request
 embedding_service: Optional[EmbeddingService] = None
 vector_store: Optional[VectorStore] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler for startup/shutdown."""
+    """Application lifespan manager for startup and shutdown.
+
+    Initializes services on startup:
+    - SQLite database with auto-created tables
+    - FastEmbed embedding service (~100MB model download on first run)
+    - Qdrant vector store connection with collection setup
+
+    Logs startup progress for debugging.
+    """
     global embedding_service, vector_store
     logger.info("Starting OmniVia API...")
 
-    # Startup: Initialize services
+    # Initialize SQLite and create tables if they don't exist
     engine = get_engine(DB_PATH)
     init_db(engine)
     logger.info(f"Database initialized at {DB_PATH}")
 
+    # Initialize local embedding model (downloads on first run)
     embedding_service = EmbeddingService()
     logger.info(f"Embedding service initialized with model: {embedding_service.model_name}")
 
+    # Initialize Qdrant vector store connection
     vector_store = VectorStore(QDRANT_URL)
     logger.info(f"Vector store connected to {QDRANT_URL}")
 
     logger.info("OmniVia API started successfully")
     yield
 
-    # Shutdown
+    # Cleanup on shutdown
     logger.info("Shutting down OmniVia API...")
 
 
@@ -68,7 +96,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
+# Allow cross-origin requests for development and MCP clients
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -79,7 +107,11 @@ app.add_middleware(
 
 
 def get_db():
-    """Dependency for database sessions."""
+    """Dependency that provides a database session for each request.
+
+    Creates a new session per request and ensures cleanup after the
+    request completes. Sessions are lightweight SQLAlchemy constructs.
+    """
     engine = get_engine(DB_PATH)
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
@@ -90,13 +122,17 @@ def get_db():
 
 
 def get_memory_service(db: Session = Depends(get_db)) -> MemoryService:
-    """Dependency for memory service."""
+    """Dependency that provides a MemoryService instance."""
     return MemoryService(db, embedding_service, vector_store)
 
 
+# =============================================================================
+# Health Check
+# =============================================================================
+
 @app.get("/health")
 def health():
-    """Health check endpoint."""
+    """Health check endpoint for container orchestration and monitoring."""
     return {
         "status": "healthy",
         "service": "omnivia-api",
@@ -104,15 +140,22 @@ def health():
     }
 
 
+# =============================================================================
+# Memory Endpoints
+# =============================================================================
+
 @app.post("/memories", response_model=Memory, status_code=201)
 def create_memory(
     memory_data: MemoryCreate,
     db: Session = Depends(get_db)
 ):
-    """Create a new memory.
+    """Create a new memory with vector embedding.
 
-    - Human-created memories default to 'observed' status
-    - Agent-created memories default to 'proposed' status (require approval)
+    - Human-created memories default to 'observed' status (trusted source)
+    - Agent-created memories default to 'proposed' status (requires review)
+
+    The memory content is embedded for semantic search and stored in both
+    SQLite (for structured queries) and Qdrant (for vector similarity search).
     """
     service = MemoryService(db, embedding_service, vector_store)
     memory = service.create_memory(
@@ -130,7 +173,11 @@ def list_memories(
     approval_status: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """List all memories, optionally filtered by approval status."""
+    """List all memories, optionally filtered by approval status.
+
+    Use approval_status='proposed' to see AI memories needing review.
+    Use approval_status='approved' for verified knowledge only.
+    """
     service = MemoryService(db, embedding_service, vector_store)
     return service.get_all_memories(limit=limit, approval_status=approval_status)
 
@@ -142,7 +189,11 @@ def search_memories(
     approval_status: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """Search memories semantically using natural language query."""
+    """Search memories semantically using natural language query.
+
+    Uses vector similarity to find memories related to the query topic.
+    Results are ranked by relevance score from Qdrant.
+    """
     service = MemoryService(db, embedding_service, vector_store)
     memories = service.search_memories(
         query=query,
@@ -161,7 +212,7 @@ def get_memory(
     memory_id: str,
     db: Session = Depends(get_db)
 ):
-    """Get a specific memory by ID."""
+    """Get a specific memory by its unique ID."""
     service = MemoryService(db, embedding_service, vector_store)
     memory = service.get_memory(memory_id)
     if not memory:
@@ -177,7 +228,12 @@ def update_memory_status(
 ):
     """Update the approval status of a memory.
 
-    Valid statuses: proposed, observed, approved
+    Valid statuses (approval lifecycle):
+    - proposed: AI-created, awaiting human review
+    - observed: Human-created or reviewed, available to agents
+    - approved: Verified as correct, trusted knowledge
+
+    Only 'proposed' memories can be promoted to 'observed' or 'approved'.
     """
     valid_statuses = ["proposed", "observed", "approved"]
     if status not in valid_statuses:
@@ -197,26 +253,32 @@ def update_memory_status(
 # Ingestion Endpoints
 # =============================================================================
 
-
 class WorkspaceScanRequest(BaseModel):
-    """Request to scan a local workspace path."""
+    """Request to scan a local workspace path.
+
+    Scans directories for supported files without modifying them.
+    Returns a structured inventory of discovered files.
+    """
     workspace_path: str
-    max_files: int = 10000
-    follow_symlinks: bool = False
+    max_files: int = 10000  # Safety cap to prevent runaway scans
+    follow_symlinks: bool = False  # Default to false for safety
 
 
 class FileInventoryItem(BaseModel):
     """One file entry in the scan inventory."""
-    path: str
-    extension: str
-    size: int
-    modified_ms: int
-    file_type: str
-    parse_status: str
+    path: str            # Relative path from workspace root
+    extension: str        # e.g. ".md" or "" for no extension
+    size: int            # File size in bytes
+    modified_ms: int     # Modified time in milliseconds since epoch
+    file_type: str        # e.g. "markdown", "text", "unsupported"
+    parse_status: str     # "supported", "unsupported", "error", "skipped_dir"
 
 
 class WorkspaceScanResponse(BaseModel):
-    """Response from scanning a workspace."""
+    """Response from scanning a workspace.
+
+    Contains statistics and the full list of discovered files.
+    """
     workspace_path: str
     total_files: int
     supported_files: int
@@ -232,6 +294,9 @@ def scan_workspace_endpoint(request: WorkspaceScanRequest):
 
     Returns metadata about all discoverable files without modifying them.
     Supported file types: markdown (.md, .markdown), plain text (.txt)
+
+    Skipped directories: __pycache__, node_modules, .git, .venv, etc.
+    Skipped files: .DS_Store, *.pyc, *.pyo, and other generated artifacts.
     """
     try:
         result = scan_workspace(
@@ -269,18 +334,21 @@ def scan_workspace_endpoint(request: WorkspaceScanRequest):
 # Node Endpoints
 # =============================================================================
 
-def _get_node_service(db: Session):
-    """Get a NodeService instance (placeholder for future implementation)."""
-    # TODO: Implement NodeService with full CRUD
-    return db
-
-
 @app.post("/nodes", response_model=NodeResponse, status_code=201)
 def create_node(node_data: NodeCreate, db: Session = Depends(get_db)):
     """Create a new node in the knowledge graph.
 
     Nodes represent structured knowledge entities like concepts, people,
-    projects, or decisions.
+    projects, or decisions. Nodes can be connected via edges to form
+    a knowledge graph.
+
+    Common node_types:
+    - concept: Abstract idea or principle
+    - person: Human individual
+    - project: Work effort or initiative
+    - decision: A made choice with rationale
+    - constraint: Limitation or requirement
+    - system: Technical or organizational system
     """
     import uuid
     import json
@@ -319,7 +387,11 @@ def list_nodes(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """List all nodes, optionally filtered by type or tag."""
+    """List all nodes, optionally filtered by type or tag.
+
+    Use node_type to filter by category (e.g., 'concept', 'person').
+    Use tag for keyword filtering within node titles and bodies.
+    """
     query = db.query(Node)
     if node_type:
         query = query.filter(Node.node_type == node_type)
@@ -346,7 +418,7 @@ def list_nodes(
 
 @app.get("/nodes/{node_id}", response_model=NodeResponse)
 def get_node(node_id: str, db: Session = Depends(get_db)):
-    """Get a specific node by ID."""
+    """Get a specific node by its unique ID."""
     node = db.query(Node).filter(Node.id == node_id).first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
@@ -373,13 +445,19 @@ def get_node(node_id: str, db: Session = Depends(get_db)):
 def create_edge(edge_data: EdgeCreate, db: Session = Depends(get_db)):
     """Create a new edge connecting two nodes.
 
-    Edges define relationships in the knowledge graph like
-    'relates_to', 'depends_on', or 'supports'.
+    Edges define relationships in the knowledge graph. Common types:
+    - relates_to: General association between entities
+    - depends_on: Dependency where one requires another
+    - supports: Evidence or backing for a claim
+    - implements: Realization of a specification or goal
+    - contradicts: Opposition or conflict between entities
+
+    Both source and target nodes must exist before creating the edge.
     """
     import uuid
     import json
 
-    # Verify both nodes exist
+    # Validate that both nodes exist before creating the edge
     source_node = db.query(Node).filter(Node.id == edge_data.source_node_id).first()
     if not source_node:
         raise HTTPException(status_code=404, detail=f"Source node {edge_data.source_node_id} not found")
@@ -448,7 +526,12 @@ def list_edges(
 
 @app.get("/nodes/{node_id}/edges")
 def get_node_edges(node_id: str, db: Session = Depends(get_db)):
-    """Get all edges connected to a specific node."""
+    """Get all edges connected to a specific node.
+
+    Returns both outgoing edges (where node is source) and incoming
+    edges (where node is target). Useful for graph traversal and
+    understanding the node's connections.
+    """
     edges = db.query(Edge).filter(
         (Edge.source_node_id == node_id) | (Edge.target_node_id == node_id)
     ).all()
@@ -482,6 +565,14 @@ def create_source(source_data: SourceCreate, db: Session = Depends(get_db)):
     """Register a new source document or artefact.
 
     Sources track the origin of ingested content for provenance.
+    When memories or nodes reference a source, we can trace back
+    to the original file, URL, or document.
+
+    Common source_types:
+    - file: Local file path
+    - url: Web URL
+    - chat_export: AI conversation export
+    - manual: User-entered content
     """
     import uuid
     import json
@@ -545,7 +636,7 @@ def list_sources(
 
 @app.get("/sources/{source_id}", response_model=SourceResponse)
 def get_source(source_id: str, db: Session = Depends(get_db)):
-    """Get a specific source by ID."""
+    """Get a specific source by its unique ID."""
     source = db.query(Source).filter(Source.id == source_id).first()
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
