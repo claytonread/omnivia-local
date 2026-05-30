@@ -99,6 +99,7 @@ app = FastAPI(
 )
 
 # Allow cross-origin requests for development and MCP clients
+# TODO: Restrict origins before production (e.g., allow_origins=["https://app.omnivia.com"])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
