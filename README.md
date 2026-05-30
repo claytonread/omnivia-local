@@ -1,4 +1,14 @@
-# OmniVia
+<p align="center">
+  <img src="docs/assets/omnivia-icon.svg" alt="OmniVia icon" width="96">
+</p>
+
+<h1 align="center">OmniVia</h1>
+
+<p align="center">
+  <strong>Omni</strong> (all) + <strong>Via</strong> (path)<br>
+  <em>All pathways connected</em>
+</p>
+
 Omni (all) + Via (path) — "All pathways connected"
 
 **OmniVia** is a private, local-first AI knowledge graph for businesses and advanced knowledge workers who have outgrown Obsidian and need a more structured, AI-ready way to manage organisational knowledge.
