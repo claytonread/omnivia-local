@@ -1,15 +1,7 @@
-<p align="center">
-  <img src="docs/assets/omnivia-icon.svg" alt="OmniVia icon" >
+<img src="docs/assets/readme-header.svg" alt="OmniVia" width="100%"><p align="left">
+  <strong>Omni</strong> (all) + <strong>Via</strong> (path)
+  <em> - All pathways connected</em>
 </p>
-
-<h1 align="center">OmniVia</h1>
-
-<p align="center">
-  <strong>Omni</strong> (all) + <strong>Via</strong> (path)<br>
-  <em>All pathways connected</em>
-</p>
-
-Omni (all) + Via (path) — "All pathways connected"
 
 **OmniVia** is a private, local-first AI knowledge graph for businesses and advanced knowledge workers who have outgrown Obsidian and need a more structured, AI-ready way to manage organisational knowledge.
 
@@ -33,6 +25,7 @@ OmniVia is for businesses and advanced knowledge workers who have outgrown Obsid
 
 It is designed for users who want a knowledge management solution that:
 
+- Is the foundation to becoming an AI native organisation
 - Works locally by default
 - Keeps business knowledge private and user-controlled
 - Goes beyond Markdown files, folders, tags, and backlinks
@@ -42,22 +35,6 @@ It is designed for users who want a knowledge management solution that:
 - Helps identify knowledge gaps, process gaps, risks, and dependencies
 - Prepares organisational knowledge for future AI agents and automation
 - Provides a stronger foundation for business intelligence and process improvement
-
-OmniVia may be especially useful for:
-
-- Small and medium-sized businesses
-- Consultants
-- Operators
-- Founders
-- AI implementation teams
-- Agile coaches
-- Delivery leaders
-- Business analysts
-- Process improvement teams
-- Knowledge managers
-- Local-first software users
-- Advanced Obsidian users
-- Teams preparing for AI adoption
 
 ---
 
@@ -620,7 +597,7 @@ Where possible, the system should:
 
 ## Future Possibilities
 
-Future versions of OmniVia may include OmniVia Cloud, OmniVia Teams, OmniVia Enterprise, multi-user collaboration, business process mining, agent orchestration, AI governance controls, SaaS integrations, Obsidian import and migration tooling, Notion import, Google Drive import, Microsoft 365 import, BPMN import and export, local LLM model management, business capability mapping, AI readiness scoring, knowledge quality scoring, and process automation recommendations.
+Future versions of OmniVia may include OmniVia Cloud, multi-user collaboration, business process mining, agent orchestration, AI governance controls, SaaS integrations, Obsidian import and migration tooling, Notion import, Google Drive import, Microsoft 365 import, BPMN import and export, local LLM model management, business capability mapping, AI readiness scoring, knowledge quality scoring, and process automation recommendations.
 
 ---
 
