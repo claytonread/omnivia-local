@@ -1,5 +1,18 @@
 # OmniVia
-
+<div class="brand-card-header">
+        <div class="brand-icon">
+          <!-- OmniVia icon — Brick #852520 background -->
+          <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="0" width="400" height="400" rx="112" ry="112" fill="#852520"></rect>
+            <path d="M200,326c-69.5,0-126-56.5-126-126s56.5-126,126-126,126,56.5,126,126-56.5,126-126,126ZM200,96c-57.3,0-104,46.7-104,104s46.7,104,104,104,104-46.7,104-104-46.7-104-104-104Z" fill="#EDE4D5"></path>
+            <path d="M200,121c-43.6,0-79,35.4-79,79s35.4,79,79,79,79-35.4,79-79-35.4-79-79-79ZM200,261c-33.6,0-61-27.4-61-61s27.4-61,61-61,61,27.4,61,61-27.4,61-61,61Z" fill="#EDE4D5" opacity="0.6"></path>
+          </svg>
+        </div>
+        <div class="brand-card-titles">
+          <div class="brand-card-name">Omni<span style="color:#852520;font-weight:600;">Via</span></div>
+          <div class="brand-card-meaning">Omni (all) + Via (path) — "All pathways connected"</div>
+        </div>
+      </div>
 **OmniVia** is a private, local-first AI knowledge graph for businesses and advanced knowledge workers who have outgrown Obsidian and need a more structured, AI-ready way to manage organisational knowledge.
 
 It transforms scattered documents, notes, processes, decisions, and operational context into a connected, searchable, AI-ready knowledge graph that can support business intelligence, process improvement, and future AI-assisted workflows.
