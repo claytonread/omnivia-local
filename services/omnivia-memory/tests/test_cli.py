@@ -284,6 +284,27 @@ class TestCmdIngest:
         args = parser.parse_args(["ingest", "test.md", "--memory-type", "pattern"])
         assert args.memory_type == "pattern"
 
+    def test_ingest_defaults_source_type(self):
+        """Ingest defaults source type to file."""
+        parser = build_parser()
+
+        args = parser.parse_args(["ingest", "test.md"])
+        assert args.source_type == "file"
+
+    def test_ingest_parses_source_type_adr(self):
+        """Ingest parses source-type adr for decision records."""
+        parser = build_parser()
+
+        args = parser.parse_args(["ingest", "docs/adr/", "--source-type", "adr"])
+        assert args.source_type == "adr"
+
+    def test_ingest_validates_source_type(self):
+        """Ingest validates source type."""
+        parser = build_parser()
+
+        with pytest.raises(SystemExit):
+            parser.parse_args(["ingest", "test.md", "--source-type", "invalid"])
+
 
 class TestCmdSources:
     """Tests for sources command."""

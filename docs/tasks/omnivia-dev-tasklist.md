@@ -94,9 +94,9 @@ The MVP spec is the controlling source of truth for Phase 1 scope. Phase 1 is Me
 
 | Task | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Implement repo/document scanner | P1 | Deferred | After memory core |
-| Index existing ADRs | P1 | Deferred | Link decisions to sources |
-| Index task and ops documents | P1 | Deferred | Link backlog/roadmap context |
+| Implement repo/document scanner | P1 | Done | Implemented via IngestionPipeline |
+| Index existing ADRs | P1 | Done | Via `omnivia-memory ingest --source-type adr` |
+| Index task and ops documents | P1 | Done | Via `omnivia-memory ingest --memory-type task` |
 | Index service definitions | P2 | Deferred | After service structure exists |
 | Index package relationships | P2 | Deferred | Later product structure |
 
@@ -104,11 +104,11 @@ The MVP spec is the controlling source of truth for Phase 1 scope. Phase 1 is Me
 
 | Task | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Store source records | P1 | Deferred | File metadata and references |
-| Link sources to memories | P1 | Deferred | Provenance-backed recall |
-| Implement project ontology | P2 | Deferred | Decisions, tasks, services, concepts |
-| Implement project context ingestion command | P1 | Deferred | CLI entry point |
-| Link decisions and tasks to sources | P1 | Deferred | Decision and task source linking |
+| Store source records | P1 | Done | sources and chunks tables |
+| Link sources to memories | P1 | Done | SourceType.FILE and SourceType.ADR |
+| Implement project ontology | P2 | Done | memory-type categories (decision, task, pattern, general) |
+| Implement project context ingestion command | P1 | Done | `omnivia-memory ingest` |
+| Link decisions and tasks to sources | P1 | Done | get_by_source_reference() method |
 
 ---
 

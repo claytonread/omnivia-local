@@ -462,11 +462,13 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                 total_files += 1
                 if result.source and result.chunks:
                     # Create memories from chunks
+                    # Use the source type specified by --source-type (default: file, use adr for ADRs)
+                    source_type = SourceType.ADR if args.source_type == "adr" else SourceType.FILE
                     for chunk in result.chunks:
                         memory_input = MemoryCreate(
                             content=chunk.content,
                             source=Source(
-                                type=SourceType.FILE,
+                                type=source_type,
                                 reference=result.source.path,
                                 description=f"Chunk {chunk.chunk_index} from {path.name}",
                             ),
@@ -486,11 +488,13 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                         continue
                     if result.source and result.chunks:
                         total_files += 1
+                        # Use the source type specified by --source-type (default: file, use adr for ADRs)
+                        source_type = SourceType.ADR if args.source_type == "adr" else SourceType.FILE
                         for chunk in result.chunks:
                             memory_input = MemoryCreate(
                                 content=chunk.content,
                                 source=Source(
-                                    type=SourceType.FILE,
+                                    type=source_type,
                                     reference=result.source.path,
                                     description=f"Chunk {chunk.chunk_index} from {Path(result.source.path).name}",
                                 ),
@@ -660,6 +664,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--memory-type",
         default="general",
         help="Memory type for created memories (default: general)",
+    )
+    ingest_parser.add_argument(
+        "--source-type",
+        default="file",
+        choices=["file", "adr"],
+        help="Source type for provenance (default: file, use adr for decision records)",
     )
     ingest_parser.set_defaults(func=cmd_ingest)
 
