@@ -110,3 +110,16 @@ external/reference/
 ## Review Date
 
 Re-evaluate after MVP completion for potential deeper integration with any of these repositories.
+
+## Definition of Done
+
+This ADR is done when:
+
+1. **Documentation Updated:** Implementation docs reference the external code boundary policy.
+2. **Comment Pass Complete:** Changed code has plain-English comments for complex logic.
+3. **Peer Review Complete:** A review report exists in `docs/quality/reviews/`. Critical and High findings are fixed or explicitly accepted.
+4. **Tests Pass:** Unit tests pass, integration tests pass, or manual validation is documented.
+5. **External Code Boundary Check:** No implementation code imports from `external/reference/`.
+6. **Final Summary:** The completion summary includes what changed, tests run, review result, docs updated, remaining risks, and commands to run.
+
+See also: `docs/quality/definition-of-done.md`, `docs/templates/task-dod-template.md`

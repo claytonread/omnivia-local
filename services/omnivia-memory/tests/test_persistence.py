@@ -1,6 +1,5 @@
 """Tests for the persistence module (database and repository)."""
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -9,7 +8,12 @@ import pytest
 from omnivia_memory.lifecycle.models import LifecycleState
 from omnivia_memory.lifecycle.rules import CreatedBy
 from omnivia_memory.memory.models import Memory
-from omnivia_memory.persistence.database import Database, DatabaseConfig, get_database, reset_database
+from omnivia_memory.persistence.database import (
+    Database,
+    DatabaseConfig,
+    get_database,
+    reset_database,
+)
 from omnivia_memory.persistence.repositories import MemoryRepository
 from omnivia_memory.provenance.models import Source, SourceType
 
@@ -40,6 +44,7 @@ def repository(database):
 @pytest.fixture
 def sample_memory():
     """Create a sample memory for testing."""
+
     def _create_memory(
         content="Test memory content",
         source_type=SourceType.FILE,
@@ -51,6 +56,7 @@ def sample_memory():
             source=Source(type=source_type, reference=source_ref),
             created_by=created_by,
         )
+
     return _create_memory
 
 

@@ -20,7 +20,7 @@ import sys
 
 from omnivia_memory.lifecycle.models import LifecycleState
 from omnivia_memory.lifecycle.rules import CreatedBy
-from omnivia_memory.memory.models import MemoryCreate, MemoryUpdate
+from omnivia_memory.memory.models import Memory, MemoryCreate, MemoryUpdate
 from omnivia_memory.memory.service import (
     InvalidTransitionError,
     MemoryNotFoundError,
@@ -54,7 +54,7 @@ def create_memory_service() -> MemoryService:
     return MemoryService(repository=repository)
 
 
-def format_memory(memory) -> str:
+def format_memory(memory: "Memory") -> str:
     """Format a memory for CLI output.
 
     Args:
@@ -268,8 +268,8 @@ def cmd_search(args: argparse.Namespace) -> int:
             return 0
 
         print(f"Found {len(memories)} matching memory(ies):\n")
-        for memory in memories:
-            print(format_memory(memory))
+        for mem in memories:
+            print(format_memory(mem))
             print("-" * 60)
         return 0
 
@@ -455,7 +455,8 @@ def main() -> int:
         parser.print_help()
         return 1
 
-    return args.func(args)
+    result: int = args.func(args)
+    return result
 
 
 if __name__ == "__main__":

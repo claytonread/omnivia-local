@@ -6,7 +6,7 @@ CRUD operations and lifecycle transitions.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List
 
 from omnivia_memory.lifecycle.models import LifecycleState
 from omnivia_memory.lifecycle.rules import LifecycleRules
@@ -96,7 +96,7 @@ class MemoryService:
         limit: int = 100,
         offset: int = 0,
         lifecycle_state: LifecycleState | None = None,
-    ) -> list[Memory]:
+    ) -> List[Memory]:
         """List memories with optional filtering.
 
         Args:
@@ -172,7 +172,7 @@ class MemoryService:
 
         return self.repository.delete(memory_id)
 
-    def search(self, query: str, limit: int = 20) -> list[Memory]:
+    def search(self, query: str, limit: int = 20) -> List[Memory]:
         """Search memories by keyword.
 
         Args:

@@ -19,6 +19,38 @@ Use this loop for most work:
 Think -> Instruct -> Build -> Review -> Decide -> Commit or Merge
 ```
 
+## Task Lanes
+
+Use the smallest lane that protects the work.
+
+### Tiny Lane
+
+Use for one-file changes, documentation cleanup, prompt/template edits, or narrow follow-up fixes.
+
+- Codex may provide a short instruction instead of a full handoff.
+- Claude should use a single session.
+- Run targeted checks only.
+- Final response must still list changed files, checks run, and remaining risk.
+
+### Standard Lane
+
+Use for normal implementation tasks.
+
+- Codex should provide a bounded handoff.
+- Claude may use subagents for test planning, review, docs drift, MCP contracts, or repo hygiene.
+- Claude must run the exact required checks in the handoff.
+- Claude must produce peer review and Definition of Done evidence.
+
+### High-Risk Lane
+
+Use for persistence, data model, MCP contracts, dependency changes, architecture changes, cross-module changes, or anything that could corrupt user/project data.
+
+- Codex should provide a full handoff with explicit file boundaries.
+- Claude should use relevant subagents or an agent team where safe.
+- Claude should stop for Codex/user direction if scope, product, architecture, or dependency decisions appear.
+- Codex review is required before merge.
+- Claude should not commit unless the handoff explicitly permits committing after all checks pass.
+
 ### 1. Think with Codex
 
 Use Codex to clarify:
@@ -47,6 +79,25 @@ Claude should:
 - Respect `AGENTS.md`
 - Run relevant checks
 - Commit only if explicitly permitted and DoD passes
+- Report exact check commands and results; do not summarize a check as passing unless that exact command was run
+
+For work that can be safely parallelised, Claude should use Claude Code agent teams. Agent teams are preferred for independent research, review, test planning and clearly separated implementation slices. They should not be used when multiple agents would edit the same files, when the task is small and sequential, or when a product/architecture decision is unresolved.
+
+Project subagents live in `.claude/agents/` and should be used as specialist support inside Claude work:
+
+- `omnivia-code-reviewer` checks implementation quality and DoD readiness
+- `omnivia-test-planner` designs focused test coverage
+- `omnivia-docs-guard` checks docs, ADRs, specs and task drift
+- `omnivia-mcp-specialist` reviews MCP tool contracts and stdio behaviour
+- `omnivia-repo-hygiene` checks git status, generated files and cleanup scope
+
+When using an agent team, the Claude lead must:
+
+- Define teammate responsibilities and file boundaries before implementation
+- Keep shared context aligned to the Codex handoff
+- Wait for teammates to complete before synthesising results
+- Own final integration, tests, review reports and DoD
+- Clean up the team after completion
 
 ### 4. Review with Codex
 
@@ -69,6 +120,14 @@ The user decides whether to:
 - Rework
 - Revert
 - Create follow-up tasks
+
+## Default Commit Policy
+
+Claude should not commit by default.
+
+Claude may commit only when the handoff explicitly permits it and Definition of Done has passed.
+
+For high-risk tasks, Claude should usually stop after implementation and checks so Codex can review before commit. If Claude has already committed and Codex finds issues, the preferred remedy is an amend commit within the same task scope, not a new unrelated cleanup task.
 
 ## Authority Boundaries
 
@@ -109,23 +168,38 @@ The user decides whether to:
 
 ## Repo as Source of Truth
 
-The repository should contain:
+OmniVia is currently operated by a solo founder/developer.
+
+Git should be treated as the durable record for product code, product-facing documentation, and required runtime/build/test configuration. Local operating documents, Claude configuration, prompt templates, scratch planning, and other non-product Markdown do not need to be tracked in Git unless the user explicitly promotes them.
+
+This is intentional. Do not repeatedly flag ignored non-product operating files as a problem merely because they are not tracked.
+
+Track in Git:
 
 - Product source code
 - Required build and runtime configuration
 - The `AGENTS.md` guidance file
-- Curated context files in `/context`
-- Operating files in `/ops`
+- Curated context files in `/context` only if explicitly promoted
+- Operating files in `/ops` only if explicitly promoted
 - Product-facing documentation where useful
 
-The repository should not contain:
+Keep local or ignored unless explicitly promoted:
 
 - Raw ChatGPT or Claude exports
 - General research dumps
 - Temporary prompt scratchpads
+- Local operating templates
+- Local Claude configuration, subagents, commands, hooks, and runtime state
+- Non-product planning Markdown
 - Screenshots unless explicitly required
 - Local cache or dependency folders
 - Secrets or credentials
+
+Promotion rule:
+
+- Codex or Claude may recommend promoting a non-product file into Git only when there is a concrete reason, such as collaboration, reproducibility on another machine, CI enforcement, audit history, or product-facing documentation.
+- Without that concrete reason, keep non-product Markdown and local agent operating files untracked.
+- Do not change `.gitignore` for non-product files unless the user explicitly approves the policy change.
 
 ## Operating Files
 
@@ -170,6 +244,8 @@ Use Codex to update `/ops` when:
 
 Do not turn `/ops` into a diary. Keep it concise, operational, and current.
 
+`/ops` is the local operational source of truth for this solo workflow. It may remain ignored by Git. Only treat that as an issue if the user has explicitly asked for `/ops` content to be version-controlled or shared.
+
 ## Preferred Branch Workflow
 
 Suggested branch pattern:
@@ -197,6 +273,6 @@ Start with a manual handoff loop:
 User -> Codex -> Claude -> Codex review -> User approval
 ```
 
-Only automate Claude execution or multi-agent orchestration after the manual loop is reliable.
+Agent teams are allowed inside the Claude implementation step where the handoff identifies safe parallel work. Broader automation beyond the Claude work session should wait until the manual Codex to Claude to Codex loop is reliable.
 
 The first priority is clean authority boundaries, not automation.

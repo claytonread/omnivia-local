@@ -1,7 +1,5 @@
 """Tests for the provenance module (Source model)."""
 
-import pytest
-
 from omnivia_memory.provenance.models import Source, SourceType
 
 

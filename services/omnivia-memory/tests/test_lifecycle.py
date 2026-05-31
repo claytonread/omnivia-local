@@ -1,7 +1,5 @@
 """Tests for the lifecycle module."""
 
-import pytest
-
 from omnivia_memory.lifecycle.models import LifecycleState
 from omnivia_memory.lifecycle.rules import CreatedBy, LifecycleRules
 

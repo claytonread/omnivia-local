@@ -90,3 +90,17 @@ async def list_tools() -> list[Tool]:
 ## Review Date
 
 Re-evaluate after MCP server MVP completion.
+
+## Definition of Done
+
+This ADR is done when:
+
+1. **Documentation Updated:** Implementation docs reflect the MCP SDK choice.
+2. **Comment Pass Complete:** Changed code has plain-English comments for complex logic.
+3. **Peer Review Complete:** A review report exists in `docs/quality/reviews/`. Critical and High findings are fixed or explicitly accepted.
+4. **Tests Pass:** Unit tests pass, integration tests pass, or manual validation is documented.
+5. **Dependency Register Updated:** `mcp>=1.0.0` is recorded if not already present.
+6. **External Code Boundary Check:** No implementation code imports from `external/reference/`.
+7. **Final Summary:** The completion summary includes what changed, tests run, review result, docs updated, remaining risks, and commands to run.
+
+See also: `docs/quality/definition-of-done.md`, `docs/templates/task-dod-template.md`

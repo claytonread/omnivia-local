@@ -6,8 +6,6 @@ from omnivia_memory.lifecycle.models import LifecycleState
 from omnivia_memory.lifecycle.rules import CreatedBy, LifecycleRules
 from omnivia_memory.memory.models import Memory, MemoryCreate, MemoryUpdate
 from omnivia_memory.memory.service import (
-    InvalidTransitionError,
-    MemoryNotFoundError,
     MemoryService,
     MemoryServiceError,
 )

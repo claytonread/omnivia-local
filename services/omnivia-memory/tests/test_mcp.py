@@ -3,7 +3,6 @@
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -14,16 +13,21 @@ from omnivia_memory.persistence.database import Database, DatabaseConfig
 from omnivia_memory.persistence.repositories import MemoryRepository
 from omnivia_memory.provenance.models import Source, SourceType
 
-
-# Skip MCP tests if MCP is not available
-pytest.importorskip("mcp")
+from mcp.types import CallToolResult
 
 from omnivia_memory.mcp.server import (
     TOOLS,
     TOOL_HANDLERS,
-    format_error,
-    format_success,
+    error_result,
+    success_result,
     memory_to_dict,
+    handle_memory_store,
+    handle_memory_get,
+    handle_memory_update,
+    handle_memory_delete,
+    handle_memory_search,
+    handle_memory_approve,
+    handle_memory_reject,
 )
 
 
@@ -48,13 +52,14 @@ def repository(temp_db):
 @pytest.fixture
 def sample_memory():
     """Create a sample memory for testing."""
+
     def _create_memory(
-        content="Test memory content",
-        source_type=SourceType.FILE,
-        source_ref="test.py",
-        created_by=CreatedBy.AGENT,
-        state=LifecycleState.PROPOSED,
-    ):
+        content: str = "Test memory content",
+        source_type: SourceType = SourceType.FILE,
+        source_ref: str = "test.py",
+        created_by: CreatedBy = CreatedBy.AGENT,
+        state: LifecycleState = LifecycleState.PROPOSED,
+    ) -> Memory:
         memory = Memory(
             content=content,
             source=Source(type=source_type, reference=source_ref),
@@ -62,6 +67,7 @@ def sample_memory():
             lifecycle_state=state,
         )
         return memory
+
     return _create_memory
 
 
@@ -127,6 +133,22 @@ class TestTools:
         assert "query" in schema["properties"]
         assert schema["required"] == ["query"]
 
+    def test_memory_approve_requires_id(self):
+        """memory_approve requires memory_id."""
+        approve_tool = next(t for t in TOOLS if t.name == "memory_approve")
+        schema = approve_tool.inputSchema
+
+        assert "memory_id" in schema["properties"]
+        assert schema["required"] == ["memory_id"]
+
+    def test_memory_reject_requires_id(self):
+        """memory_reject requires memory_id."""
+        reject_tool = next(t for t in TOOLS if t.name == "memory_reject")
+        schema = reject_tool.inputSchema
+
+        assert "memory_id" in schema["properties"]
+        assert schema["required"] == ["memory_id"]
+
 
 class TestToolHandlers:
     """Tests for tool handlers."""
@@ -166,141 +188,166 @@ class TestMemoryToDict:
         json.dumps(result)
 
 
-class TestFormatError:
-    """Tests for format_error function."""
+class TestErrorResult:
+    """Tests for error_result function."""
 
-    def test_format_error_structure(self):
-        """format_error returns correct structure."""
-        result = format_error("Test error")
+    def test_returns_call_tool_result(self):
+        """error_result returns CallToolResult."""
+        result = error_result("Test error")
 
-        assert "content" in result
-        assert "isError" in result
-        assert result["isError"] is True
-        assert "Test error" in result["content"][0]["text"]
+        assert isinstance(result, CallToolResult)
 
-    def test_format_error_content_type(self):
-        """format_error returns text content."""
-        result = format_error("Test error")
+    def test_is_error_true(self):
+        """error_result sets isError to True."""
+        result = error_result("Test error")
 
-        assert result["content"][0]["type"] == "text"
+        assert result.isError is True
+
+    def test_content_contains_message(self):
+        """error_result includes message in content."""
+        result = error_result("Test error message")
+
+        assert len(result.content) == 1
+        assert "Test error message" in result.content[0].text
 
 
-class TestFormatSuccess:
-    """Tests for format_success function."""
+class TestSuccessResult:
+    """Tests for success_result function."""
 
-    def test_format_success_structure(self):
-        """format_success returns correct structure."""
-        result = format_success({"key": "value"})
+    def test_returns_call_tool_result(self):
+        """success_result returns CallToolResult."""
+        result = success_result({"key": "value"})
 
-        assert "content" in result
-        assert "isError" in result
-        assert result["isError"] is False
+        assert isinstance(result, CallToolResult)
 
-    def test_format_success_serializes_data(self):
-        """format_success serializes data to JSON string."""
+    def test_is_error_false(self):
+        """success_result sets isError to False."""
+        result = success_result({"key": "value"})
+
+        assert result.isError is False
+
+    def test_serializes_data_to_json(self):
+        """success_result serializes data to JSON string."""
         data = {"key": "value", "number": 42}
-        result = format_success(data)
+        result = success_result(data)
 
-        # Text content should be JSON string
-        assert result["content"][0]["type"] == "text"
-        parsed = json.loads(result["content"][0]["text"])
+        parsed = json.loads(result.content[0].text)
         assert parsed == data
 
 
 class TestMemoryStoreHandler:
     """Tests for memory_store tool handler."""
 
-    def test_handler_exists(self):
-        """handle_memory_store handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_store
-        assert handle_memory_store is not None
+    def test_handler_returns_error_for_missing_source_type(self):
+        """Handler returns error when source_type missing."""
+        result = handle_memory_store(
+            {
+                "content": "test content",
+                "source_reference": "test.py",
+                # Missing source_type
+            }
+        )
 
-    def test_handler_requires_source_type(self):
-        """Handler validates required fields."""
-        from omnivia_memory.mcp.server import handle_memory_store
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "source_type" in result.content[0].text
 
-        result = handle_memory_store({
-            "content": "test content",
-            # Missing source_type and source_reference
-        })
+    def test_handler_returns_error_for_missing_source_reference(self):
+        """Handler returns error when source_reference missing."""
+        result = handle_memory_store(
+            {
+                "content": "test content",
+                "source_type": "file",
+                # Missing source_reference
+            }
+        )
 
-        assert result["isError"] is True
-
-
-class TestMemoryListHandler:
-    """Tests for memory_list tool handler."""
-
-    def test_handler_exists(self):
-        """handle_memory_list handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_list
-        assert handle_memory_list is not None
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "source_reference" in result.content[0].text
 
 
 class TestMemoryGetHandler:
     """Tests for memory_get tool handler."""
 
-    def test_handler_exists(self):
-        """handle_memory_get handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_get
-        assert handle_memory_get is not None
-
     def test_handler_returns_error_for_missing_id(self):
         """Handler returns error when memory_id missing."""
-        from omnivia_memory.mcp.server import handle_memory_get
-
         result = handle_memory_get({})
 
-        assert result["isError"] is True
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "memory_id" in result.content[0].text
 
 
 class TestMemoryUpdateHandler:
     """Tests for memory_update tool handler."""
 
-    def test_handler_exists(self):
-        """handle_memory_update handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_update
-        assert handle_memory_update is not None
+    def test_handler_returns_error_for_missing_id(self):
+        """Handler returns error when memory_id missing."""
+        result = handle_memory_update({})
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "memory_id" in result.content[0].text
 
 
 class TestMemoryDeleteHandler:
     """Tests for memory_delete tool handler."""
 
-    def test_handler_exists(self):
-        """handle_memory_delete handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_delete
-        assert handle_memory_delete is not None
+    def test_handler_returns_error_for_missing_id(self):
+        """Handler returns error when memory_id missing."""
+        result = handle_memory_delete({})
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "memory_id" in result.content[0].text
 
 
 class TestMemorySearchHandler:
     """Tests for memory_search tool handler."""
 
-    def test_handler_exists(self):
-        """handle_memory_search handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_search
-        assert handle_memory_search is not None
-
-    def test_handler_requires_query(self):
-        """Handler validates required fields."""
-        from omnivia_memory.mcp.server import handle_memory_search
-
+    def test_handler_returns_error_for_missing_query(self):
+        """Handler returns error when query missing."""
         result = handle_memory_search({})
 
-        assert result["isError"] is True
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "query" in result.content[0].text
 
 
 class TestMemoryApproveHandler:
     """Tests for memory_approve tool handler."""
 
-    def test_handler_exists(self):
-        """handle_memory_approve handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_approve
-        assert handle_memory_approve is not None
+    def test_handler_returns_error_for_missing_id(self):
+        """Handler returns structured error when memory_id missing."""
+        result = handle_memory_approve({})
+
+        # Should return CallToolResult with isError=True, not raise KeyError
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "memory_id" in result.content[0].text
+
+    def test_handler_returns_call_tool_result_type(self):
+        """Handler returns CallToolResult, not dict."""
+        result = handle_memory_approve({})
+
+        assert type(result).__name__ == "CallToolResult"
 
 
 class TestMemoryRejectHandler:
     """Tests for memory_reject tool handler."""
 
-    def test_handler_exists(self):
-        """handle_memory_reject handler exists."""
-        from omnivia_memory.mcp.server import handle_memory_reject
-        assert handle_memory_reject is not None
+    def test_handler_returns_error_for_missing_id(self):
+        """Handler returns structured error when memory_id missing."""
+        result = handle_memory_reject({})
+
+        # Should return CallToolResult with isError=True, not raise KeyError
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "memory_id" in result.content[0].text
+
+    def test_handler_returns_call_tool_result_type(self):
+        """Handler returns CallToolResult, not dict."""
+        result = handle_memory_reject({})
+
+        assert type(result).__name__ == "CallToolResult"

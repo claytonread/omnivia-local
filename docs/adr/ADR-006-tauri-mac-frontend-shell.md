@@ -36,3 +36,17 @@ Claude should not choose Electron, SwiftUI, or a browser-only frontend for the m
 ## Review Trigger
 
 Revisit only if Tauri blocks core local-first capabilities, creates unacceptable packaging complexity, or OmniVia Cloud requirements prove incompatible with the shared frontend approach.
+
+## Definition of Done
+
+This ADR is done when:
+
+1. **Documentation Updated:** Implementation docs reflect the Tauri choice.
+2. **Comment Pass Complete:** Changed code has plain-English comments for complex logic.
+3. **Peer Review Complete:** A review report exists in `docs/quality/reviews/`. Critical and High findings are fixed or explicitly accepted.
+4. **Tests Pass:** Unit tests pass, integration tests pass, or manual validation is documented.
+5. **Dependency Register Updated:** Dependencies are recorded if packages were added.
+6. **External Code Boundary Check:** No implementation code imports from `external/reference/`.
+7. **Final Summary:** The completion summary includes what changed, tests run, review result, docs updated, remaining risks, and commands to run.
+
+See also: `docs/quality/definition-of-done.md`, `docs/templates/task-dod-template.md`

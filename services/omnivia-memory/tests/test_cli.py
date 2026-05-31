@@ -1,9 +1,7 @@
 """Tests for the CLI module."""
 
-import argparse
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -11,15 +9,7 @@ from omnivia_memory.cli.commands import (
     build_parser,
     cmd_create,
     cmd_list,
-    cmd_get,
-    cmd_update,
-    cmd_delete,
-    cmd_search,
-    cmd_approve,
-    cmd_reject,
-    cmd_stats,
     format_memory,
-    main,
 )
 from omnivia_memory.lifecycle.models import LifecycleState
 from omnivia_memory.lifecycle.rules import CreatedBy
@@ -50,6 +40,7 @@ def repository(temp_db):
 @pytest.fixture
 def sample_memory():
     """Create a sample memory for testing."""
+
     def _create_memory(
         content="Test memory content",
         source_type=SourceType.FILE,
@@ -64,6 +55,7 @@ def sample_memory():
             lifecycle_state=state,
         )
         return memory
+
     return _create_memory
 
 
@@ -81,7 +73,9 @@ class TestBuildParser:
         parser = build_parser()
 
         # Check create command
-        args = parser.parse_args(["create", "--content", "test", "--source-type", "file", "--source-ref", "test.py"])
+        args = parser.parse_args(
+            ["create", "--content", "test", "--source-type", "file", "--source-ref", "test.py"]
+        )
         assert args.command == "create"
         assert args.func == cmd_create
 
@@ -158,7 +152,17 @@ class TestCmdCreate:
         parser = build_parser()
 
         with pytest.raises(SystemExit):
-            parser.parse_args(["create", "--content", "test", "--source-type", "invalid", "--source-ref", "test.py"])
+            parser.parse_args(
+                [
+                    "create",
+                    "--content",
+                    "test",
+                    "--source-type",
+                    "invalid",
+                    "--source-ref",
+                    "test.py",
+                ]
+            )
 
 
 class TestCmdList:

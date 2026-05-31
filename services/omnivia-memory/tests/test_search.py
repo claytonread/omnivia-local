@@ -17,12 +17,14 @@ def search_service():
 @pytest.fixture
 def sample_memory():
     """Create a sample memory for testing."""
+
     def _create_memory(content="Test content"):
         return Memory(
             content=content,
             source=Source(type=SourceType.FILE, reference="test.py"),
             created_by=CreatedBy.AGENT,
         )
+
     return _create_memory
 
 

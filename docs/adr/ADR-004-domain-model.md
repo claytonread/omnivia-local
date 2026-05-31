@@ -148,3 +148,18 @@ Workspace (1) ──contains── (*,N) Node
 ## Review Date
 
 Re-evaluate after Node/Edge MVP implementation or when Memory model needs to evolve.
+
+## Definition of Done
+
+This ADR is done when:
+
+1. **Documentation Updated:** Implementation docs reflect the domain model decision.
+2. **Comment Pass Complete:** Changed code has plain-English comments for complex logic.
+3. **Peer Review Complete:** A review report exists in `docs/quality/reviews/`. Critical and High findings are fixed or explicitly accepted.
+4. **Tests Pass:** Unit tests pass, integration tests pass, or manual validation is documented.
+5. **ADR Updated:** An ADR exists or is updated if the implementation chose new technology or changed service boundaries.
+6. **Dependency Register Updated:** Dependencies are recorded if packages were added.
+7. **External Code Boundary Check:** No implementation code imports from `external/reference/`.
+8. **Final Summary:** The completion summary includes what changed, tests run, review result, docs updated, remaining risks, and commands to run.
+
+See also: `docs/quality/definition-of-done.md`, `docs/templates/task-dod-template.md`

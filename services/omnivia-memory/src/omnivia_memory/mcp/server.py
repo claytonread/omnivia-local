@@ -12,21 +12,18 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-try:
-    from mcp.server import Server
-    from mcp.server.stdio import stdio_server
-    from mcp.types import Tool
+if TYPE_CHECKING:
+    pass
 
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-    Tool = Any  # type: ignore[misc,assignment]
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import CallToolResult, TextContent, Tool
 
 from omnivia_memory.lifecycle.models import LifecycleState
 from omnivia_memory.lifecycle.rules import CreatedBy
-from omnivia_memory.memory.models import MemoryCreate, MemoryUpdate
+from omnivia_memory.memory.models import Memory, MemoryCreate, MemoryUpdate
 from omnivia_memory.memory.service import (
     InvalidTransitionError,
     MemoryNotFoundError,
@@ -40,7 +37,6 @@ from omnivia_memory.provenance.models import Source, SourceType
 
 # Server instance name
 SERVER_NAME = "omnivia-memory"
-SERVER_VERSION = "0.1.0"
 
 
 def create_memory_service() -> MemoryService:
@@ -62,7 +58,7 @@ def create_memory_service() -> MemoryService:
     return MemoryService(repository=repository)
 
 
-def memory_to_dict(memory) -> dict[str, Any]:
+def memory_to_dict(memory: Memory) -> dict[str, Any]:
     """Convert a memory to a JSON-serializable dictionary.
 
     Args:
@@ -83,34 +79,34 @@ def memory_to_dict(memory) -> dict[str, Any]:
     }
 
 
-def format_error(error: str) -> dict[str, Any]:
-    """Format an error response.
+def error_result(message: str) -> CallToolResult:
+    """Create a structured error result using MCP SDK types.
 
     Args:
-        error: Error message
+        message: Error message to return
 
     Returns:
-        Error response dictionary
+        CallToolResult with isError=True
     """
-    return {
-        "content": [{"type": "text", "text": f"Error: {error}"}],
-        "isError": True,
-    }
+    return CallToolResult(
+        content=[TextContent(type="text", text=message)],
+        isError=True,
+    )
 
 
-def format_success(data: Any) -> dict[str, Any]:
-    """Format a success response.
+def success_result(data: Any) -> CallToolResult:
+    """Create a success result using MCP SDK types.
 
     Args:
-        data: Response data
+        data: Data to return (will be JSON serialized)
 
     Returns:
-        Success response dictionary
+        CallToolResult with isError=False
     """
-    return {
-        "content": [{"type": "text", "text": json.dumps(data, indent=2)}],
-        "isError": False,
-    }
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(data, indent=2))],
+        isError=False,
+    )
 
 
 # MCP Tool definitions
@@ -277,22 +273,22 @@ TOOLS: list[Tool] = [
 ]
 
 
-def handle_memory_store(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_store(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_store tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
-    try:
-        # Validate required fields
-        if "source_type" not in args:
-            return format_error("Missing required field: source_type")
-        if "source_reference" not in args:
-            return format_error("Missing required field: source_reference")
+    # Validate required fields
+    if "source_type" not in args:
+        return error_result("Missing required field: source_type")
+    if "source_reference" not in args:
+        return error_result("Missing required field: source_reference")
 
+    try:
         service = create_memory_service()
 
         source_type = SourceType(args["source_type"])
@@ -312,22 +308,22 @@ def handle_memory_store(args: dict[str, Any]) -> dict[str, Any]:
         )
 
         memory = service.create(memory_input)
-        return format_success(memory_to_dict(memory))
+        return success_result(memory_to_dict(memory))
 
-    except (ValueError, TypeError, KeyError) as e:
-        return format_error(str(e))
+    except (ValueError, TypeError) as e:
+        return error_result(str(e))
     except MemoryServiceError as e:
-        return format_error(str(e))
+        return error_result(str(e))
 
 
-def handle_memory_list(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_list(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_list tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
     try:
         service = create_memory_service()
@@ -342,50 +338,50 @@ def handle_memory_list(args: dict[str, Any]) -> dict[str, Any]:
             lifecycle_state=state_filter,
         )
 
-        return format_success([memory_to_dict(m) for m in memories])
+        return success_result([memory_to_dict(m) for m in memories])
 
     except ValueError as e:
-        return format_error(str(e))
+        return error_result(str(e))
     except MemoryServiceError as e:
-        return format_error(str(e))
+        return error_result(str(e))
 
 
-def handle_memory_get(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_get(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_get tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
-    try:
-        if "memory_id" not in args:
-            return format_error("Missing required field: memory_id")
+    if "memory_id" not in args:
+        return error_result("Missing required field: memory_id")
 
+    try:
         service = create_memory_service()
         memory = service.get(args["memory_id"])
-        return format_success(memory_to_dict(memory))
+        return success_result(memory_to_dict(memory))
 
     except MemoryNotFoundError as e:
-        return format_error(str(e))
-    except (MemoryServiceError, KeyError) as e:
-        return format_error(str(e))
+        return error_result(str(e))
+    except MemoryServiceError as e:
+        return error_result(str(e))
 
 
-def handle_memory_update(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_update(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_update tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
-    try:
-        if "memory_id" not in args:
-            return format_error("Missing required field: memory_id")
+    if "memory_id" not in args:
+        return error_result("Missing required field: memory_id")
 
+    try:
         service = create_memory_service()
 
         update_input = MemoryUpdate(
@@ -394,109 +390,115 @@ def handle_memory_update(args: dict[str, Any]) -> dict[str, Any]:
         )
 
         memory = service.update(args["memory_id"], update_input)
-        return format_success(memory_to_dict(memory))
+        return success_result(memory_to_dict(memory))
 
     except MemoryNotFoundError as e:
-        return format_error(str(e))
+        return error_result(str(e))
     except InvalidTransitionError as e:
-        return format_error(str(e))
-    except (MemoryServiceError, KeyError) as e:
-        return format_error(str(e))
+        return error_result(str(e))
+    except MemoryServiceError as e:
+        return error_result(str(e))
 
 
-def handle_memory_delete(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_delete(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_delete tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
-    try:
-        if "memory_id" not in args:
-            return format_error("Missing required field: memory_id")
+    if "memory_id" not in args:
+        return error_result("Missing required field: memory_id")
 
+    try:
         service = create_memory_service()
         deleted = service.delete(args["memory_id"])
 
         if deleted:
-            return format_success({"deleted": True, "memory_id": args["memory_id"]})
+            return success_result({"deleted": True, "memory_id": args["memory_id"]})
         else:
-            return format_error(f"Memory '{args['memory_id']}' not found")
+            return error_result(f"Memory '{args['memory_id']}' not found")
 
     except MemoryNotFoundError as e:
-        return format_error(str(e))
-    except (MemoryServiceError, KeyError) as e:
-        return format_error(str(e))
+        return error_result(str(e))
+    except MemoryServiceError as e:
+        return error_result(str(e))
 
 
-def handle_memory_search(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_search(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_search tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
-    try:
-        if "query" not in args:
-            return format_error("Missing required field: query")
+    if "query" not in args:
+        return error_result("Missing required field: query")
 
+    try:
         service = create_memory_service()
         memories = service.search(
             args["query"],
             limit=args.get("limit", 20),
         )
-        return format_success([memory_to_dict(m) for m in memories])
+        return success_result([memory_to_dict(m) for m in memories])
 
-    except (MemoryServiceError, KeyError) as e:
-        return format_error(str(e))
+    except MemoryServiceError as e:
+        return error_result(str(e))
 
 
-def handle_memory_approve(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_approve(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_approve tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
+    if "memory_id" not in args:
+        return error_result("Missing required field: memory_id")
+
     try:
         service = create_memory_service()
         memory = service.approve(args["memory_id"])
-        return format_success(memory_to_dict(memory))
+        return success_result(memory_to_dict(memory))
 
     except MemoryNotFoundError as e:
-        return format_error(str(e))
+        return error_result(str(e))
     except InvalidTransitionError as e:
-        return format_error(str(e))
+        return error_result(str(e))
     except MemoryServiceError as e:
-        return format_error(str(e))
+        return error_result(str(e))
 
 
-def handle_memory_reject(args: dict[str, Any]) -> dict[str, Any]:
+def handle_memory_reject(args: dict[str, Any]) -> CallToolResult:
     """Handle memory_reject tool call.
 
     Args:
         args: Tool arguments
 
     Returns:
-        MCP response
+        MCP CallToolResult
     """
+    if "memory_id" not in args:
+        return error_result("Missing required field: memory_id")
+
     try:
         service = create_memory_service()
         memory = service.reject(args["memory_id"])
-        return format_success(memory_to_dict(memory))
+        return success_result(memory_to_dict(memory))
 
     except MemoryNotFoundError as e:
-        return format_error(str(e))
+        return error_result(str(e))
     except InvalidTransitionError as e:
-        return format_error(str(e))
+        return error_result(str(e))
     except MemoryServiceError as e:
-        return format_error(str(e))
+        return error_result(str(e))
 
 
 # Tool handlers map
@@ -514,25 +516,21 @@ TOOL_HANDLERS: dict[str, Any] = {
 
 async def run_server() -> None:
     """Run the MCP server over stdio."""
-    if not MCP_AVAILABLE:
-        print("Error: MCP package not installed. Run: pip install mcp", file=sys.stderr)
-        sys.exit(1)
-
     server = Server(SERVER_NAME)
 
-    @server.list_tools()
+    @server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
     async def list_tools() -> list[Tool]:
         """List available MCP tools."""
         return TOOLS
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    @server.call_tool()  # type: ignore[untyped-decorator]
+    async def call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
         """Handle tool calls."""
         handler = TOOL_HANDLERS.get(name)
         if handler is None:
-            return format_error(f"Unknown tool: {name}")
+            return error_result(f"Unknown tool: {name}")
 
-        return handler(arguments)
+        return handler(arguments)  # type: ignore[no-any-return]
 
     options = server.create_initialization_options()
     async with stdio_server() as (read_stream, write_stream):
@@ -545,10 +543,6 @@ def main() -> int:
     Returns:
         Exit code
     """
-    if not MCP_AVAILABLE:
-        print("Error: MCP package not installed. Run: pip install mcp", file=sys.stderr)
-        return 1
-
     import asyncio
 
     try:
