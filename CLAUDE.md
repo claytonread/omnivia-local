@@ -183,6 +183,28 @@ When using an agent team:
 6. The lead is responsible for final integration, tests, review reports and DoD.
 7. The lead must clean up the team when work is complete.
 
+## Goal-Driven Implementation
+
+Use explicit acceptance criteria to drive implementation with incremental verification.
+
+The goal-driven workflow is enabled via `.claude/commands/goal-implementation.md`.
+
+When to use it:
+
+- A task has clear acceptance criteria that can be tracked
+- Incremental verification reduces risk of late surprises
+- You need to report which criteria are satisfied and which remain
+
+How it works:
+
+1. Parse acceptance criteria from the task handoff into a checklist
+2. Track each criterion: `[ ]` Not started, `[x]` Satisfied, `[!]` Blocker
+3. Implement incrementally, verifying each criterion as you go
+4. Run the finish protocol when all criteria hold
+5. Report which criteria are satisfied and which remain
+
+See `.claude/commands/goal-implementation.md` for the full workflow.
+
 <!-- OMNIVIA_CODE_QUALITY_END -->
 
 <!-- OMNIVIA_DEFINITION_OF_DONE_START -->

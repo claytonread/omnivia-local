@@ -30,13 +30,15 @@ Use for one-file changes, documentation cleanup, prompt/template edits, or narro
 - Codex may provide a short instruction instead of a full handoff.
 - Claude should use a single session.
 - Run targeted checks only.
+- No review reports required (unless user requests).
 - Final response must still list changed files, checks run, and remaining risk.
 
 ### Standard Lane
 
-Use for normal implementation tasks.
+Use for normal bounded implementation tasks with clear acceptance criteria.
 
-- Codex should provide a bounded handoff.
+- Codex should provide a bounded handoff with acceptance criteria.
+- Claude should use `/goal` to drive implementation until acceptance criteria are satisfied.
 - Claude may use subagents for test planning, review, docs drift, MCP contracts, or repo hygiene.
 - Claude must run the exact required checks in the handoff.
 - Claude must produce peer review and Definition of Done evidence.
@@ -45,7 +47,8 @@ Use for normal implementation tasks.
 
 Use for persistence, data model, MCP contracts, dependency changes, architecture changes, cross-module changes, or anything that could corrupt user/project data.
 
-- Codex should provide a full handoff with explicit file boundaries.
+- Codex should provide a full handoff with explicit file boundaries and acceptance criteria.
+- Claude should use `/goal` for multi-turn iteration toward acceptance criteria.
 - Claude should use relevant subagents or an agent team where safe.
 - Claude should stop for Codex/user direction if scope, product, architecture, or dependency decisions appear.
 - Codex review is required before merge.
@@ -231,6 +234,30 @@ Complete review workflow with triggers, process steps, decision matrix, and exam
 
 Reusable prompts for planning, handoff generation, implementation review, and roadmap updates.
 
+### `.claude/commands/`
+
+Claude Code command files for automated workflows:
+
+| Command | Purpose |
+|---------|---------|
+| `goal-implementation.md` | Goal-driven implementation with acceptance criteria tracking |
+| `spec-drift-check.md` | Detect implementation/spec divergence |
+| `dependency-audit.md` | Check for outdated Python dependencies |
+| `finish-task.md` | Complete task completion protocol |
+| `dod-check.md` | Verify Definition of Done |
+| `peer-review.md` | Peer review checklist |
+| `comment-pass.md` | Comment quality check |
+
+### `.claude/hooks/`
+
+Claude Code hooks for policy enforcement:
+
+| Hook | Purpose |
+|------|---------|
+| `enforce_finish_task.py` | Block completion until DoD evidence exists |
+| `pretool_block_dangerous.py` | Block dangerous git operations |
+| `session_start_context.py` | Show context at session start |
+
 ## Planning Cadence
 
 Use Codex to update `/ops` when:
@@ -276,3 +303,48 @@ User -> Codex -> Claude -> Codex review -> User approval
 Agent teams are allowed inside the Claude implementation step where the handoff identifies safe parallel work. Broader automation beyond the Claude work session should wait until the manual Codex to Claude to Codex loop is reliable.
 
 The first priority is clean authority boundaries, not automation.
+
+## Claude Code Feature Integration
+
+OmniVia leverages Claude Code's automation features to improve efficiency and quality.
+
+### Goal-Driven Implementation (`/goal`)
+
+Use `/goal` for tasks with clear, verifiable acceptance criteria.
+
+- Run `/goal` with the acceptance criteria as the target condition
+- A separate fast model judges criterion satisfaction after each turn
+- Claude continues until the goal reports satisfaction
+- Then run the finish protocol (comment pass, peer review, DoD check)
+
+Example:
+```bash
+/goal all acceptance criteria from the handoff are satisfied
+```
+
+### Cloud Routines (`/schedule`)
+
+Schedule recurring maintenance tasks to run independently:
+
+| Routine | Frequency | Purpose |
+|---------|-----------|---------|
+| Spec drift check | Weekly | Verify implementation matches specs |
+| Dependency audit | Weekly | Check for outdated/vulnerable deps |
+| Task backlog review | Weekly | Groom open tasks, update statuses |
+| Review report cleanup | Monthly | Archive old review reports |
+
+Run `/schedule` to set up recurring prompts. Cloud routines run on Anthropic infrastructure and do not require an open Claude session.
+
+### Claude Hooks
+
+Hooks intercept Claude Code actions to enforce policies:
+
+| Hook | When | Purpose |
+|------|------|---------|
+| `SessionStart` | Session begins | Show pending changes, open tasks, recent reviews |
+| `PreToolUse` | Before tool call | Block dangerous operations (force push, hard reset) |
+| `PostToolUse` | After tool call | Auto-format after edits (optional) |
+| `Stop` | Task completes | Enforce Definition of Done |
+| `TaskCompleted` | Task marked done | Enforce Definition of Done |
+
+Hooks are configured in `.claude/settings.json`. Custom hook scripts live in `.claude/hooks/`.
