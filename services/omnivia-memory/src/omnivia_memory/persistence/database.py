@@ -225,6 +225,82 @@ class Database:
             ON chunks(content_hash)
         """)
 
+        # Create patterns table for detected recurring knowledge
+        # Agent-created patterns start in "proposed" state for human review
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS patterns (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                pattern_type TEXT NOT NULL,
+                description TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                occurrence_count INTEGER NOT NULL,
+                source_id TEXT,
+                approval_status TEXT NOT NULL DEFAULT 'proposed',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        # Create pattern_occurrences table for tracking which memories
+        # triggered pattern detection
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pattern_occurrences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pattern_id TEXT NOT NULL,
+                memory_id TEXT NOT NULL,
+                evidence TEXT,
+                detected_at TEXT NOT NULL,
+                FOREIGN KEY (pattern_id) REFERENCES patterns(id)
+            )
+        """)
+
+        # Create pattern_relationships table for pattern-to-pattern connections
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pattern_relationships (
+                id TEXT PRIMARY KEY,
+                source_pattern_id TEXT NOT NULL,
+                target_pattern_id TEXT,
+                related_memory_id TEXT,
+                relationship_type TEXT NOT NULL DEFAULT 'exemplifies',
+                source_id TEXT,
+                approval_status TEXT NOT NULL DEFAULT 'proposed',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (source_pattern_id) REFERENCES patterns(id)
+            )
+        """)
+
+        # Create indexes for pattern queries
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_patterns_type
+            ON patterns(pattern_type)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_patterns_source
+            ON patterns(source_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_patterns_status
+            ON patterns(approval_status)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_patterns_confidence
+            ON patterns(confidence)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pattern_occurrences_pattern
+            ON pattern_occurrences(pattern_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pattern_occurrences_memory
+            ON pattern_occurrences(memory_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pattern_relationships_source
+            ON pattern_relationships(source_pattern_id)
+        """)
+
         if self.config.auto_commit:
             self.connection.commit()
 

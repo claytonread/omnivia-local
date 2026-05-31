@@ -2,84 +2,88 @@
 
 ## Task / Change Summary
 
-Implementation of Phase 2 project context ingestion command (`omnivia-memory ingest`).
-
-**Scope implemented:**
-- `omnivia-memory ingest` CLI command for scanning files/directories
-- Extracts content using ingestion pipeline (extractor → chunker)
-- Creates memories from chunks with FILE source type for provenance tracking
-- `omnivia-memory sources` CLI command for listing ingested source files
-- `sources` and `chunks` database tables for tracking ingested content
-- `get_by_source_reference` and `get_by_source_type` repository methods for source-backed recall
+Implemented pattern detection for OmniVia Phase 4. Pattern detection analyzes stored memories to identify recurring patterns in:
+- Content similarity (similar knowledge appearing multiple times)
+- Source patterns (same source generating multiple related memories)
+- Lifecycle transitions (common approval paths)
 
 ## Files Changed
 
-| File | Change |
-|------|--------|
-| `services/omnivia-memory/src/omnivia_memory/cli/commands.py` | Added `cmd_ingest`, `cmd_sources`, `create_ingestion_pipeline` |
-| `services/omnivia-memory/src/omnivia_memory/persistence/database.py` | Added `sources` and `chunks` tables with indexes |
-| `services/omnivia-memory/src/omnivia_memory/persistence/repositories.py` | Added `get_by_source_reference`, `get_by_source_type` methods |
-| `services/omnivia-memory/tests/test_cli.py` | Added tests for `ingest` and `sources` commands |
+### New Files
+- `services/omnivia-memory/src/omnivia_memory/pattern/__init__.py`
+- `services/omnivia-memory/src/omnivia_memory/pattern/models.py`
+- `services/omnivia-memory/src/omnivia_memory/pattern/service.py`
+- `services/omnivia-memory/src/omnivia_memory/pattern/repository.py`
+- `services/omnivia-memory/tests/test_pattern.py`
+
+### Modified Files
+- `services/omnivia-memory/src/omnivia_memory/mcp/server.py` - Added pattern MCP tools
+- `services/omnivia-memory/src/omnivia_memory/persistence/database.py` - Added pattern tables
 
 ## Spec Alignment
 
-Task #1 acceptance criteria from `docs/tasks/omnivia-dev-tasklist.md`:
-- [x] Implement project context ingestion command (CLI entry point)
-- [x] Store source records (new `sources` table)
-- [x] Link sources to memories (via SourceType.FILE and source_reference)
-- [x] Link decisions and tasks to sources (via get_by_source_reference)
+Pattern detection implementation aligns with Phase 4 requirements from `docs/tasks/omnivia-dev-tasklist.md`:
+- Content similarity detection implemented
+- Source cluster detection implemented
+- Lifecycle transition detection implemented
+- MCP tools for pattern queries added
 
 ## Documentation Updated
 
-- No user-facing documentation changed (internal implementation)
-- New CLI commands documented via `--help`
+- Peer review report created: `docs/quality/reviews/2026-06-01-0500-peer-review.md`
 
 ## Specs / Tasks Updated
 
-- Task #1 marked as completed
-- Task list file: `docs/tasks/omnivia-dev-tasklist.md`
+- Task #1 (Implement pattern detection) marked as completed
 
 ## ADRs Updated
 
-- No ADRs created or updated (no architecture decision change)
+None required - this follows existing patterns and does not change architecture.
 
 ## Tests Run
 
 ```bash
-python3 -m pytest tests/ -q
-# Result: 183 passed, 6 warnings in 1.50s
+cd services/omnivia-memory && python3 -m pytest tests/ -q
+# Result: 262 passed, 6 warnings
 ```
 
-Code quality checks:
 ```bash
-python3 -m ruff check src/ tests/
+cd services/omnivia-memory && python3 -m ruff check src/omnivia_memory/pattern src/omnivia_memory/mcp/server.py
 # Result: All checks passed
+```
 
-python3 -m mypy src/ --ignore-missing-imports
-# Result: Success: no issues found in 31 source files
+```bash
+cd services/omnivia-memory && python3 -m mypy src/omnivia_memory/pattern
+# Result: Success: no issues found
+```
+
+```bash
+cd services/omnivia-memory && python3 -m pytest tests/test_pattern.py -v
+# Result: 36 passed
 ```
 
 ## Peer Review Status
 
-Peer review completed and approved. Report: `docs/quality/reviews/2026-06-01-0500-peer-review.md`
+Peer review completed and report created: `docs/quality/reviews/2026-06-01-0500-peer-review.md`
+- Overall Decision: Approved
+- No critical or high issues found
 
 ## Comment Pass Status
 
-Comment pass completed. Key comments added:
-- `cmd_ingest` docstring explaining how chunks become memories
-- Inline comment explaining path resolution and validation
-- Factory function documentation for `create_ingestion_pipeline`
-- Database schema comments explaining provenance purpose
+Comment pass completed:
+- Plain-English comments explaining business logic
+- Docstrings for all public functions, service methods, and MCP tools
+- Why comments instead of what comments
+- Agent-created entities default to "proposed" state clearly documented
 
 ## External Code Boundary Check
 
-- No imports from `external/reference/`
-- Uses only OmniVia internal packages: ingestion, persistence, memory, provenance
+No imports from `external/reference/` - compliant with OmniVia rules.
 
 ## Remaining Risks
 
-- **Low**: Large directory ingestion could create many memories (mitigated by proposed state requiring human approval)
+None - implementation is complete and tested.
 
 ## Final Decision
 
-**Done**
+Done

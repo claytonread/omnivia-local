@@ -157,8 +157,8 @@ The MVP spec is the controlling source of truth for Phase 1 scope. Phase 1 is Me
 
 | Task | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Implement pattern detection | P2 | Deferred | |
-| Implement knowledge consolidation | P2 | Deferred | |
+| Implement pattern detection | P2 | Done | PatternService with content/source/lifecycle detection |
+| Implement knowledge consolidation | P2 | Done | ConsolidationService with conflict detection |
 | Implement tension surfacing | P3 | Deferred | Future |
 | Implement recommendations | P3 | Deferred | Future |
 | Implement agent workflow support | P3 | Deferred | Future |

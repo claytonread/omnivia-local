@@ -41,6 +41,19 @@ from omnivia_memory.graph.service import (
     GraphService,
 )
 
+# Import consolidation modules
+from omnivia_memory.consolidation.models import (
+    ConflictSeverity,
+    ConsolidationStrategy,
+    KnowledgeUnit,
+    MemoryConflict,
+)
+from omnivia_memory.consolidation.service import (
+    ConsolidationService,
+    ConsolidationServiceError,
+    KnowledgeUnitNotFoundError,
+)
+
 
 # Server instance name
 SERVER_NAME = "omnivia-memory"
@@ -516,6 +529,228 @@ TOOLS: list[Tool] = [
                 },
             },
             "required": ["entity_id"],
+        },
+    ),
+    # Pattern detection tools
+    Tool(
+        name="pattern_detect",
+        description="Detect recurring patterns in stored memories. Analyzes content similarity, source clusters, and lifecycle transitions. Agent-created patterns start as 'proposed' for human review.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "min_occurrences": {
+                    "type": "integer",
+                    "description": "Minimum occurrences to create a pattern (default: 2)",
+                    "default": 2,
+                },
+            },
+        },
+    ),
+    Tool(
+        name="pattern_list",
+        description="List detected patterns with optional filtering by pattern type.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "pattern_type": {
+                    "type": "string",
+                    "enum": [
+                        "content_similarity",
+                        "source_cluster",
+                        "lifecycle_transition",
+                        "concept_reference",
+                        "decision_recurrence",
+                    ],
+                    "description": "Filter by pattern type",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of patterns to return",
+                    "default": 100,
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of patterns to skip",
+                    "default": 0,
+                },
+            },
+        },
+    ),
+    Tool(
+        name="pattern_get",
+        description="Retrieve a specific pattern by its ID.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "pattern_id": {
+                    "type": "string",
+                    "description": "The unique identifier of the pattern",
+                },
+            },
+            "required": ["pattern_id"],
+        },
+    ),
+    Tool(
+        name="pattern_get_occurrences",
+        description="Get all occurrences of a pattern, showing which memories triggered its detection.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "pattern_id": {
+                    "type": "string",
+                    "description": "The ID of the pattern",
+                },
+            },
+            "required": ["pattern_id"],
+        },
+    ),
+    Tool(
+        name="pattern_approve",
+        description="Approve a pattern, moving it from 'proposed' to 'approved'.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "pattern_id": {
+                    "type": "string",
+                    "description": "The ID of the pattern to approve",
+                },
+            },
+            "required": ["pattern_id"],
+        },
+    ),
+    Tool(
+        name="pattern_reject",
+        description="Reject a pattern, moving it to 'rejected' state.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "pattern_id": {
+                    "type": "string",
+                    "description": "The ID of the pattern to reject",
+                },
+            },
+            "required": ["pattern_id"],
+        },
+    ),
+    # Knowledge consolidation tools
+    Tool(
+        name="consolidate_knowledge",
+        description="Consolidate related memories into knowledge units by topic. Groups memories sharing topics for synthesized views.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Optional specific topic to consolidate",
+                },
+                "memory_type": {
+                    "type": "string",
+                    "description": "Optional memory type filter (general, decision, pattern, constraint)",
+                },
+                "strategy": {
+                    "type": "string",
+                    "enum": ["topic", "source", "decision"],
+                    "description": "Consolidation strategy (topic, source, or decision)",
+                    "default": "topic",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum memories to consider",
+                    "default": 50,
+                },
+            },
+        },
+    ),
+    Tool(
+        name="get_knowledge_unit",
+        description="Retrieve a specific knowledge unit by its ID.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "unit_id": {
+                    "type": "string",
+                    "description": "The unique identifier of the knowledge unit",
+                },
+            },
+            "required": ["unit_id"],
+        },
+    ),
+    Tool(
+        name="list_knowledge_units",
+        description="List consolidated knowledge units with optional filtering.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "strategy": {
+                    "type": "string",
+                    "enum": ["topic", "source", "decision"],
+                    "description": "Filter by consolidation strategy",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of units to return",
+                    "default": 20,
+                },
+            },
+        },
+    ),
+    Tool(
+        name="detect_conflicts",
+        description="Detect conflicts between memories on the same topic. Analyzes memories looking for contradictory information.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Optional specific topic to check for conflicts",
+                },
+                "memory_type": {
+                    "type": "string",
+                    "description": "Optional memory type filter",
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"],
+                    "description": "Filter by conflict severity level",
+                },
+            },
+        },
+    ),
+    Tool(
+        name="get_consolidated_view",
+        description="Get a comprehensive consolidated view of knowledge on a topic, including knowledge units and detected conflicts.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "The topic to get consolidated view for",
+                },
+                "include_conflicts": {
+                    "type": "boolean",
+                    "description": "Whether to include conflict information",
+                    "default": True,
+                },
+            },
+            "required": ["topic"],
+        },
+    ),
+    Tool(
+        name="resolve_conflict",
+        description="Mark a detected conflict as resolved.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "conflict_id": {
+                    "type": "string",
+                    "description": "The ID of the conflict to resolve",
+                },
+                "resolution": {
+                    "type": "string",
+                    "description": "Resolution description explaining how the conflict was resolved",
+                },
+            },
+            "required": ["conflict_id", "resolution"],
         },
     ),
 ]
@@ -1055,6 +1290,496 @@ def handle_graph_get_context(args: dict[str, Any]) -> CallToolResult:
         return error_result(str(e))
 
 
+# Pattern tool handlers
+
+
+def create_pattern_service() -> Any:
+    """Create a configured pattern service with SQLite persistence.
+
+    Returns:
+        Configured PatternService instance
+    """
+    from omnivia_memory.pattern.repository import PatternRepository
+    from omnivia_memory.pattern.service import PatternService
+
+    home = Path.home()
+    db_dir = home / ".omnivia"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    db_path = db_dir / "memories.db"
+
+    config = DatabaseConfig(db_path=db_path)
+    db = Database(config)
+    db.connect()
+
+    pattern_repo = PatternRepository(db)
+    memory_repo = MemoryRepository(db)
+
+    # Import memory service
+    from omnivia_memory.memory.service import MemoryService
+
+    memory_service = MemoryService(repository=memory_repo)
+    return PatternService(pattern_repository=pattern_repo, memory_service=memory_service)
+
+
+def pattern_to_dict(pattern: Any) -> dict[str, Any]:
+    """Convert a pattern to a JSON-serializable dictionary.
+
+    Args:
+        pattern: Pattern object
+
+    Returns:
+        Dictionary representation
+    """
+    return {
+        "id": pattern.id,
+        "name": pattern.name,
+        "pattern_type": pattern.pattern_type.value,
+        "description": pattern.description,
+        "confidence": pattern.confidence,
+        "occurrence_count": pattern.occurrence_count,
+        "source_id": pattern.source_id,
+        "approval_status": pattern.approval_status,
+        "created_at": pattern.created_at,
+        "updated_at": pattern.updated_at,
+    }
+
+
+def occurrence_to_dict(occurrence: Any) -> dict[str, Any]:
+    """Convert a pattern occurrence to a JSON-serializable dictionary.
+
+    Args:
+        occurrence: PatternOccurrence object
+
+    Returns:
+        Dictionary representation
+    """
+    return {
+        "pattern_id": occurrence.pattern_id,
+        "memory_id": occurrence.memory_id,
+        "evidence": occurrence.evidence,
+        "detected_at": occurrence.detected_at,
+    }
+
+
+def handle_pattern_detect(args: dict[str, Any]) -> CallToolResult:
+    """Handle pattern_detect tool call.
+
+    Analyzes stored memories to identify recurring patterns across
+    content similarity, source clusters, and lifecycle transitions.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    try:
+        service = create_pattern_service()
+        memory_service = create_memory_service()
+
+        # Get all memories to analyze
+        memories = memory_service.list(limit=1000)
+
+        # Detect patterns
+        patterns = service.detect_all_patterns(
+            memories=memories,
+            min_occurrences=args.get("min_occurrences", 2),
+        )
+
+        return success_result(
+            {
+                "patterns_detected": len(patterns),
+                "patterns": [pattern_to_dict(p) for p in patterns],
+            }
+        )
+
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_pattern_list(args: dict[str, Any]) -> CallToolResult:
+    """Handle pattern_list tool call.
+
+    Lists detected patterns with optional filtering by type.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    try:
+        from omnivia_memory.pattern.models import PatternType
+
+        service = create_pattern_service()
+
+        pattern_type = None
+        if args.get("pattern_type"):
+            pattern_type = PatternType(args["pattern_type"])
+
+        patterns = service.list_patterns(
+            pattern_type=pattern_type,
+            limit=args.get("limit", 100),
+            offset=args.get("offset", 0),
+        )
+
+        return success_result([pattern_to_dict(p) for p in patterns])
+
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_pattern_get(args: dict[str, Any]) -> CallToolResult:
+    """Handle pattern_get tool call.
+
+    Retrieves a specific pattern by its ID.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    if "pattern_id" not in args:
+        return error_result("Missing required field: pattern_id")
+
+    try:
+        from omnivia_memory.pattern.service import PatternNotFoundError
+
+        service = create_pattern_service()
+        pattern = service.get_pattern(args["pattern_id"])
+        return success_result(pattern_to_dict(pattern))
+
+    except PatternNotFoundError as e:
+        return error_result(str(e))
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_pattern_get_occurrences(args: dict[str, Any]) -> CallToolResult:
+    """Handle pattern_get_occurrences tool call.
+
+    Returns all occurrences of a pattern, showing which memories
+    triggered its detection.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    if "pattern_id" not in args:
+        return error_result("Missing required field: pattern_id")
+
+    try:
+        from omnivia_memory.pattern.service import PatternNotFoundError
+
+        service = create_pattern_service()
+        occurrences = service.get_pattern_occurrences(args["pattern_id"])
+        return success_result([occurrence_to_dict(o) for o in occurrences])
+
+    except PatternNotFoundError as e:
+        return error_result(str(e))
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_pattern_approve(args: dict[str, Any]) -> CallToolResult:
+    """Handle pattern_approve tool call.
+
+    Approves a pattern, moving it from 'proposed' to 'approved' state.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    if "pattern_id" not in args:
+        return error_result("Missing required field: pattern_id")
+
+    try:
+        from omnivia_memory.pattern.service import PatternNotFoundError
+
+        service = create_pattern_service()
+        pattern = service.approve_pattern(args["pattern_id"])
+        return success_result(pattern_to_dict(pattern))
+
+    except PatternNotFoundError as e:
+        return error_result(str(e))
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_pattern_reject(args: dict[str, Any]) -> CallToolResult:
+    """Handle pattern_reject tool call.
+
+    Rejects a pattern, moving it to 'rejected' state.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    if "pattern_id" not in args:
+        return error_result("Missing required field: pattern_id")
+
+    try:
+        from omnivia_memory.pattern.service import PatternNotFoundError
+
+        service = create_pattern_service()
+        pattern = service.reject_pattern(args["pattern_id"])
+        return success_result(pattern_to_dict(pattern))
+
+    except PatternNotFoundError as e:
+        return error_result(str(e))
+    except Exception as e:
+        return error_result(str(e))
+
+
+# Knowledge consolidation tool handlers
+
+
+def create_consolidation_service() -> ConsolidationService:
+    """Create a configured consolidation service with SQLite persistence.
+
+    Returns:
+        Configured ConsolidationService instance
+    """
+    home = Path.home()
+    db_dir = home / ".omnivia"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    db_path = db_dir / "memories.db"
+
+    config = DatabaseConfig(db_path=db_path)
+    db = Database(config)
+    db.connect()
+
+    memory_repo = MemoryRepository(db)
+    return ConsolidationService(repository=memory_repo)
+
+
+def knowledge_unit_to_dict(unit: KnowledgeUnit) -> dict[str, Any]:
+    """Convert a knowledge unit to a JSON-serializable dictionary.
+
+    Args:
+        unit: KnowledgeUnit object
+
+    Returns:
+        Dictionary representation
+    """
+    return unit.to_dict()
+
+
+def conflict_to_dict(conflict: MemoryConflict) -> dict[str, Any]:
+    """Convert a memory conflict to a JSON-serializable dictionary.
+
+    Args:
+        conflict: MemoryConflict object
+
+    Returns:
+        Dictionary representation
+    """
+    return conflict.to_dict()
+
+
+def handle_consolidate_knowledge(args: dict[str, Any]) -> CallToolResult:
+    """Handle consolidate_knowledge tool call.
+
+    Consolidates related memories into knowledge units by topic,
+    source, or decision strategy.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    try:
+        service = create_consolidation_service()
+        strategy = args.get("strategy", "topic")
+
+        if strategy == "source":
+            units = service.consolidate_by_source(
+                source_reference=args.get("source_reference"),
+                limit=args.get("limit", 50),
+            )
+        elif strategy == "decision":
+            units = service.consolidate_by_decision(
+                decision_id=args.get("decision_id"),
+                limit=args.get("limit", 50),
+            )
+        else:
+            units = service.consolidate_by_topic(
+                topic=args.get("topic"),
+                memory_type=args.get("memory_type"),
+                limit=args.get("limit", 50),
+            )
+
+        return success_result(
+            {
+                "units_created": len(units),
+                "knowledge_units": [knowledge_unit_to_dict(u) for u in units],
+            }
+        )
+
+    except ConsolidationServiceError as e:
+        return error_result(str(e))
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_get_knowledge_unit(args: dict[str, Any]) -> CallToolResult:
+    """Handle get_knowledge_unit tool call.
+
+    Retrieves a specific knowledge unit by its ID.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    if "unit_id" not in args:
+        return error_result("Missing required field: unit_id")
+
+    try:
+        service = create_consolidation_service()
+        unit = service.get_knowledge_unit(args["unit_id"])
+        return success_result(knowledge_unit_to_dict(unit))
+
+    except KnowledgeUnitNotFoundError as e:
+        return error_result(str(e))
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_list_knowledge_units(args: dict[str, Any]) -> CallToolResult:
+    """Handle list_knowledge_units tool call.
+
+    Lists consolidated knowledge units with optional filtering.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    try:
+        service = create_consolidation_service()
+
+        strategy = None
+        if args.get("strategy"):
+            strategy = ConsolidationStrategy(args["strategy"])
+
+        units = service.list_knowledge_units(
+            strategy=strategy,
+            limit=args.get("limit", 20),
+        )
+
+        return success_result([knowledge_unit_to_dict(u) for u in units])
+
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_detect_conflicts(args: dict[str, Any]) -> CallToolResult:
+    """Handle detect_conflicts tool call.
+
+    Detects conflicts between memories on the same topic.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    try:
+        service = create_consolidation_service()
+
+        conflicts = service.detect_conflicts(
+            topic=args.get("topic"),
+            memory_type=args.get("memory_type"),
+        )
+
+        # Filter by severity if specified
+        if args.get("severity"):
+            severity = ConflictSeverity(args["severity"])
+            conflicts = [c for c in conflicts if c.severity == severity]
+
+        return success_result(
+            {
+                "conflicts_found": len(conflicts),
+                "conflicts": [conflict_to_dict(c) for c in conflicts],
+            }
+        )
+
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_get_consolidated_view(args: dict[str, Any]) -> CallToolResult:
+    """Handle get_consolidated_view tool call.
+
+    Gets a comprehensive consolidated view of knowledge on a topic,
+    including knowledge units and detected conflicts.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    if "topic" not in args:
+        return error_result("Missing required field: topic")
+
+    try:
+        service = create_consolidation_service()
+
+        view = service.get_consolidated_view(
+            topic=args["topic"],
+            include_conflicts=args.get("include_conflicts", True),
+        )
+
+        return success_result(view)
+
+    except Exception as e:
+        return error_result(str(e))
+
+
+def handle_resolve_conflict(args: dict[str, Any]) -> CallToolResult:
+    """Handle resolve_conflict tool call.
+
+    Marks a detected conflict as resolved.
+
+    Args:
+        args: Tool arguments
+
+    Returns:
+        MCP CallToolResult
+    """
+    if "conflict_id" not in args:
+        return error_result("Missing required field: conflict_id")
+    if "resolution" not in args:
+        return error_result("Missing required field: resolution")
+
+    try:
+        service = create_consolidation_service()
+
+        conflict = service.resolve_conflict(
+            conflict_id=args["conflict_id"],
+            resolution=args["resolution"],
+        )
+
+        return success_result(conflict_to_dict(conflict))
+
+    except ConsolidationServiceError as e:
+        return error_result(str(e))
+    except Exception as e:
+        return error_result(str(e))
+
+
 # Tool handlers map
 TOOL_HANDLERS: dict[str, Any] = {
     "memory_store": handle_memory_store,
@@ -1072,6 +1797,18 @@ TOOL_HANDLERS: dict[str, Any] = {
     "graph_get_neighbors": handle_graph_get_neighbors,
     "graph_search": handle_graph_search,
     "graph_get_context": handle_graph_get_context,
+    "pattern_detect": handle_pattern_detect,
+    "pattern_list": handle_pattern_list,
+    "pattern_get": handle_pattern_get,
+    "pattern_get_occurrences": handle_pattern_get_occurrences,
+    "pattern_approve": handle_pattern_approve,
+    "pattern_reject": handle_pattern_reject,
+    "consolidate_knowledge": handle_consolidate_knowledge,
+    "get_knowledge_unit": handle_get_knowledge_unit,
+    "list_knowledge_units": handle_list_knowledge_units,
+    "detect_conflicts": handle_detect_conflicts,
+    "get_consolidated_view": handle_get_consolidated_view,
+    "resolve_conflict": handle_resolve_conflict,
 }
 
 
