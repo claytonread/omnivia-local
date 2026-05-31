@@ -42,8 +42,12 @@
 !scripts/
 !scripts/**
 
-!docs/
-!docs/**
+!docs/assets/
+!docs/assets/**
+
+# Ignore all other docs folders (only docs/assets is product code)
+docs/*
+!docs/assets/
 
 !data/
 !data/.gitignore
