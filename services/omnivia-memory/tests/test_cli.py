@@ -240,3 +240,66 @@ class TestCmdReject:
 
         with pytest.raises(SystemExit):
             parser.parse_args(["reject"])
+
+
+class TestCmdIngest:
+    """Tests for ingest command."""
+
+    def test_ingest_requires_paths(self):
+        """Ingest requires at least one path argument."""
+        parser = build_parser()
+
+        with pytest.raises(SystemExit):
+            parser.parse_args(["ingest"])
+
+    def test_ingest_accepts_single_path(self):
+        """Ingest accepts a single file path."""
+        parser = build_parser()
+
+        args = parser.parse_args(["ingest", "test.md"])
+        assert args.command == "ingest"
+        assert args.paths == ["test.md"]
+        assert args.memory_type == "general"
+
+    def test_ingest_accepts_multiple_paths(self):
+        """Ingest accepts multiple paths."""
+        parser = build_parser()
+
+        args = parser.parse_args(["ingest", "docs/", "specs/", "--memory-type", "decision"])
+        assert args.command == "ingest"
+        assert args.paths == ["docs/", "specs/"]
+        assert args.memory_type == "decision"
+
+    def test_ingest_defaults_memory_type(self):
+        """Ingest defaults memory type to general."""
+        parser = build_parser()
+
+        args = parser.parse_args(["ingest", "test.md"])
+        assert args.memory_type == "general"
+
+    def test_ingest_parses_memory_type_flag(self):
+        """Ingest parses memory-type flag."""
+        parser = build_parser()
+
+        args = parser.parse_args(["ingest", "test.md", "--memory-type", "pattern"])
+        assert args.memory_type == "pattern"
+
+
+class TestCmdSources:
+    """Tests for sources command."""
+
+    def test_sources_accepts_no_args(self):
+        """Sources accepts no arguments."""
+        parser = build_parser()
+
+        args = parser.parse_args(["sources"])
+        assert args.command == "sources"
+        assert args.limit is None
+
+    def test_sources_accepts_limit(self):
+        """Sources accepts limit argument."""
+        parser = build_parser()
+
+        args = parser.parse_args(["sources", "--limit", "50"])
+        assert args.command == "sources"
+        assert args.limit == 50

@@ -175,6 +175,56 @@ class Database:
             )
         """)
 
+        # Create sources table for tracking ingested files
+        # Enables provenance-backed recall: memories cite source files
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sources (
+                id TEXT PRIMARY KEY,
+                file_path TEXT NOT NULL UNIQUE,
+                extension TEXT,
+                size_bytes INTEGER,
+                modified_time TEXT,
+                file_type TEXT NOT NULL,
+                content_hash TEXT,
+                parse_status TEXT NOT NULL DEFAULT 'pending',
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        # Create chunks table for content segments from ingested files
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chunks (
+                id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                start_offset INTEGER DEFAULT 0,
+                end_offset INTEGER DEFAULT 0,
+                content_hash TEXT,
+                FOREIGN KEY (source_id) REFERENCES sources(id)
+            )
+        """)
+
+        # Create indexes for source/chunk queries
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sources_hash
+            ON sources(content_hash)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sources_status
+            ON sources(parse_status)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chunks_source
+            ON chunks(source_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_chunks_hash
+            ON chunks(content_hash)
+        """)
+
         if self.config.auto_commit:
             self.connection.commit()
 

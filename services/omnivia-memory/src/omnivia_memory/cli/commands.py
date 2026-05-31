@@ -30,6 +30,14 @@ from omnivia_memory.memory.service import (
 from omnivia_memory.persistence.database import Database, DatabaseConfig
 from omnivia_memory.persistence.repositories import MemoryRepository
 from omnivia_memory.provenance.models import Source, SourceType
+from omnivia_memory.ingestion.pipeline import IngestionPipeline
+from omnivia_memory.ingestion.extractors import (
+    BaseExtractor,
+    MarkdownExtractor,
+)
+from omnivia_memory.ingestion.chunker import BaseChunker, ParagraphChunker
+from omnivia_memory.ingestion.models import FileType
+from omnivia_memory.ingestion.repositories import SourceRepository, ChunkRepository
 
 
 def create_memory_service() -> MemoryService:
@@ -52,6 +60,36 @@ def create_memory_service() -> MemoryService:
 
     repository = MemoryRepository(db)
     return MemoryService(repository=repository)
+
+
+def create_ingestion_pipeline(db: Database) -> IngestionPipeline:
+    """Create a configured ingestion pipeline with SQLite persistence.
+
+    Args:
+        db: Database instance for storing sources and chunks
+
+    Returns:
+        Configured IngestionPipeline instance
+    """
+    # Wire up repositories for source and chunk persistence
+    source_repo = SourceRepository(db)
+    chunk_repo = ChunkRepository(db)
+
+    # Configure extractors for supported file types
+    extractors: dict[FileType, BaseExtractor] = {
+        FileType.MARKDOWN: MarkdownExtractor(),
+    }
+
+    # Use paragraph chunker with sensible defaults
+    # Note: ParagraphChunker doesn't take chunk_size/overlap, use CharacterChunker for those
+    chunker: BaseChunker = ParagraphChunker()
+
+    return IngestionPipeline(
+        extractors=extractors,
+        chunker=chunker,
+        source_repository=source_repo,
+        chunk_repository=chunk_repo,
+    )
 
 
 def format_memory(memory: "Memory") -> str:
@@ -358,6 +396,178 @@ def cmd_stats(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_ingest(args: argparse.Namespace) -> int:
+    """Handle project context ingestion command.
+
+    Scans files/directories, extracts content, chunks it, and creates
+    memories with FILE source type for provenance tracking.
+
+    Each chunk from an ingested file becomes a separate memory with:
+    - The chunk content as the memory content
+    - The source file path as the provenance reference
+    - The memory type specified by --memory-type (default: general)
+    - Created by AGENT (not human) so it starts as proposed state
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    try:
+        from pathlib import Path
+
+        # Create database and services
+        home = Path.home()
+        db_dir = home / ".omnivia"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        db_path = db_dir / "memories.db"
+
+        config = DatabaseConfig(db_path=db_path)
+        db = Database(config)
+        db.connect()
+
+        memory_service = MemoryService(repository=MemoryRepository(db))
+        pipeline = create_ingestion_pipeline(db)
+
+        # Collect all paths to ingest
+        # Resolve to absolute paths and validate existence
+        paths: list[Path] = []
+        for path_str in args.paths:
+            path = Path(path_str).resolve()
+            if not path.exists():
+                print(f"Warning: Path does not exist: {path_str}", file=sys.stderr)
+                continue
+            paths.append(path)
+
+        if not paths:
+            print("Error: No valid paths to ingest", file=sys.stderr)
+            return 1
+
+        # Track overall statistics
+        total_files = 0
+        total_chunks = 0
+        total_memories = 0
+        errors: list[str] = []
+
+        # Process each path
+        for path in paths:
+            if path.is_file():
+                # Ingest single file
+                result = pipeline.ingest_file(path)
+                if result.error:
+                    errors.append(f"{path}: {result.error}")
+                    continue
+
+                total_files += 1
+                if result.source and result.chunks:
+                    # Create memories from chunks
+                    for chunk in result.chunks:
+                        memory_input = MemoryCreate(
+                            content=chunk.content,
+                            source=Source(
+                                type=SourceType.FILE,
+                                reference=result.source.path,
+                                description=f"Chunk {chunk.chunk_index} from {path.name}",
+                            ),
+                            memory_type=args.memory_type or "general",
+                            created_by=CreatedBy.AGENT,
+                        )
+                        memory_service.create(memory_input)
+                        total_memories += 1
+                    total_chunks += len(result.chunks)
+
+            elif path.is_dir():
+                # Ingest directory
+                results = pipeline.ingest_directory(path)
+                for result in results:
+                    if result.error:
+                        errors.append(f"{result.source.path if result.source else 'unknown'}: {result.error}")
+                        continue
+                    if result.source and result.chunks:
+                        total_files += 1
+                        for chunk in result.chunks:
+                            memory_input = MemoryCreate(
+                                content=chunk.content,
+                                source=Source(
+                                    type=SourceType.FILE,
+                                    reference=result.source.path,
+                                    description=f"Chunk {chunk.chunk_index} from {Path(result.source.path).name}",
+                                ),
+                                memory_type=args.memory_type or "general",
+                                created_by=CreatedBy.AGENT,
+                            )
+                            memory_service.create(memory_input)
+                            total_memories += 1
+                        total_chunks += len(result.chunks)
+
+        # Print summary
+        print("Ingestion Complete:")
+        print(f"  Files processed: {total_files}")
+        print(f"  Chunks extracted: {total_chunks}")
+        print(f"  Memories created: {total_memories}")
+
+        if errors:
+            print(f"\nErrors ({len(errors)}):")
+            for error in errors[:10]:  # Show first 10 errors
+                print(f"  - {error}")
+            if len(errors) > 10:
+                print(f"  ... and {len(errors) - 10} more")
+
+        return 0
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_sources(args: argparse.Namespace) -> int:
+    """Handle sources listing command.
+
+    Shows all ingested source files and their status.
+
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        Exit code (0 for success, 1 for error)
+    """
+    try:
+        from pathlib import Path
+
+        # Create database and repository
+        home = Path.home()
+        db_dir = home / ".omnivia"
+        db_dir.mkdir(parents=True, exist_ok=True)
+        db_path = db_dir / "memories.db"
+
+        config = DatabaseConfig(db_path=db_path)
+        db = Database(config)
+        db.connect()
+
+        source_repo = SourceRepository(db)
+        sources = source_repo.list_all(limit=args.limit or 100)
+
+        if not sources:
+            print("No ingested sources found.")
+            return 0
+
+        print(f"Found {len(sources)} source(s):\n")
+        for source in sources:
+            print(f"Source: {source.id}")
+            print(f"  File: {source.path}")
+            print(f"  Type: {source.file_type.value}")
+            print(f"  Status: {source.status.value}")
+            print(f"  Size: {source.size} bytes")
+            print(f"  Ingested: {source.created_at}")
+            print("-" * 60)
+        return 0
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for the CLI.
 
@@ -438,6 +648,29 @@ def build_parser() -> argparse.ArgumentParser:
     # stats command
     stats_parser = subparsers.add_parser("stats", help="Show memory statistics")
     stats_parser.set_defaults(func=cmd_stats)
+
+    # ingest command
+    ingest_parser = subparsers.add_parser("ingest", help="Ingest project files and create memories")
+    ingest_parser.add_argument(
+        "paths",
+        nargs="+",
+        help="Files or directories to ingest",
+    )
+    ingest_parser.add_argument(
+        "--memory-type",
+        default="general",
+        help="Memory type for created memories (default: general)",
+    )
+    ingest_parser.set_defaults(func=cmd_ingest)
+
+    # sources command
+    sources_parser = subparsers.add_parser("sources", help="List ingested source files")
+    sources_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of sources to return",
+    )
+    sources_parser.set_defaults(func=cmd_sources)
 
     return parser
 

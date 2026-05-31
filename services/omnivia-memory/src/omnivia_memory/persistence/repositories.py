@@ -258,3 +258,50 @@ class MemoryRepository:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+
+    def get_by_source_reference(self, source_reference: str) -> list[Memory]:
+        """Find all memories that cite a specific source.
+
+        Enables source-backed recall - when reviewing a file, see all
+        memories that were created from it.
+
+        Args:
+            source_reference: The source reference (e.g., file path)
+
+        Returns:
+            List of memories from that source
+        """
+        cursor = self.db.execute(
+            """
+            SELECT * FROM memories
+            WHERE source_reference = ?
+            ORDER BY created_at DESC
+            """,
+            (source_reference,),
+        )
+        return [self._row_to_memory(row) for row in cursor.fetchall()]
+
+    def get_by_source_type(self, source_type: SourceType) -> list[Memory]:
+        """Find all memories from a specific source type.
+
+        Useful for filtering memories by where they came from:
+        - FILE: memories extracted from project files
+        - ADR: memories from architecture decisions
+        - URL: memories from web resources
+        - HUMAN: direct human assertions
+
+        Args:
+            source_type: The type of source to filter by
+
+        Returns:
+            List of memories from that source type
+        """
+        cursor = self.db.execute(
+            """
+            SELECT * FROM memories
+            WHERE source_type = ?
+            ORDER BY created_at DESC
+            """,
+            (source_type.value,),
+        )
+        return [self._row_to_memory(row) for row in cursor.fetchall()]
