@@ -118,29 +118,29 @@ The MVP spec is the controlling source of truth for Phase 1 scope. Phase 1 is Me
 
 | Task | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Implement Node storage | P1 | Deferred | |
-| Implement Edge storage | P1 | Deferred | |
+| Implement Node storage | P1 | Done | Entity model and EntityRepository |
+| Implement Edge storage | P1 | Done | Relationship model and RelationshipRepository |
 | Add bidirectional edge support | P2 | Deferred | |
-| Implement graph traversal | P1 | Deferred | |
+| Implement graph traversal | P1 | Done | GraphService.get_neighbors, get_context |
 | Add semantic search | P2 | Deferred | After Phase 2 source ingestion |
-| Add vector store | P2 | Deferred | Not part of Phase 1 |
+| Add vector store | P2 | Deferred | Not part of MVP |
 | Add graph enrichment | P2 | Deferred | |
 
 ### 3.2 Relationship Tools
 
 | Task | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Implement graph_get_node | P1 | Deferred | |
-| Implement graph_search | P1 | Deferred | |
-| Implement graph_get_neighbors | P1 | Deferred | |
+| Implement graph_get_node | P1 | Done | MCP tool: get_entity |
+| Implement graph_search | P1 | Done | MCP tool: search_entities |
+| Implement graph_get_neighbors | P1 | Done | MCP tool: get_entity_context |
 | Implement graph_get_path | P2 | Deferred | |
 
 ### 3.3 Decision Tracking
 
 | Task | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Implement ADR storage | P1 | Deferred | |
-| Implement decision_search | P1 | Deferred | |
+| Implement ADR storage | P1 | Done | Via ingest with --source-type adr |
+| Implement decision_search | P1 | Done | Via memory search |
 | Link decisions to nodes | P2 | Deferred | |
 
 ### 3.4 Context Tools
