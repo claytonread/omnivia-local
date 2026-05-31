@@ -109,6 +109,72 @@ class Database:
             ON memories(memory_type)
         """)
 
+        # Create graph_entities table for knowledge graph nodes
+        # Agent-created entities start in "proposed" state for human review
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS graph_entities (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                source_id TEXT,
+                approval_status TEXT NOT NULL DEFAULT 'proposed',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        # Create graph_relationships table for knowledge graph edges
+        # Agent-created relationships start in "proposed" state for human review
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS graph_relationships (
+                id TEXT PRIMARY KEY,
+                source_entity_id TEXT NOT NULL,
+                target_entity_id TEXT NOT NULL,
+                relationship_type TEXT NOT NULL,
+                source_id TEXT,
+                approval_status TEXT NOT NULL DEFAULT 'proposed',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+
+        # Create indexes for graph queries
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_graph_entities_type
+            ON graph_entities(entity_type)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_graph_entities_source
+            ON graph_entities(source_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_graph_entities_status
+            ON graph_entities(approval_status)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_graph_relationships_source
+            ON graph_relationships(source_entity_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_graph_relationships_target
+            ON graph_relationships(target_entity_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_graph_relationships_type
+            ON graph_relationships(relationship_type)
+        """)
+
+        # Create entity_memory_links table for tracking provenance
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS entity_memory_links (
+                entity_id TEXT NOT NULL,
+                memory_id TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (entity_id, memory_id)
+            )
+        """)
+
         if self.config.auto_commit:
             self.connection.commit()
 
