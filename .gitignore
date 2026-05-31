@@ -228,3 +228,8 @@ docs/obsidian-import.md
 docs/product-vision.md
 docs/roadmap.md
 docs/security-and-privacy.md
+
+# ----------------------------------------------------------
+# Development QA artefacts (not product code)
+# ----------------------------------------------------------
+docs/quality/reviews/
