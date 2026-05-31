@@ -28,6 +28,8 @@ from omnivia_memory.mcp.server import (
     handle_memory_search,
     handle_memory_approve,
     handle_memory_reject,
+    handle_graph_search,
+    handle_graph_get_context,
 )
 
 
@@ -351,3 +353,86 @@ class TestMemoryRejectHandler:
         result = handle_memory_reject({})
 
         assert type(result).__name__ == "CallToolResult"
+
+
+class TestGraphSearchTool:
+    """Tests for graph_search tool definition."""
+
+    def test_graph_search_tool_exists(self):
+        """graph_search tool is defined."""
+        tool_names = {tool.name for tool in TOOLS}
+        assert "graph_search" in tool_names
+
+    def test_graph_search_has_required_fields(self):
+        """graph_search tool has correct schema."""
+        search_tool = next(t for t in TOOLS if t.name == "graph_search")
+        schema = search_tool.inputSchema
+
+        assert "query" in schema["properties"]
+        assert "entity_types" in schema["properties"]
+        assert "depth" in schema["properties"]
+        assert "limit" in schema["properties"]
+        assert schema["required"] == ["query"]
+
+    def test_graph_search_depth_defaults_to_zero(self):
+        """graph_search defaults depth to 0 (no neighbors)."""
+        search_tool = next(t for t in TOOLS if t.name == "graph_search")
+        schema = search_tool.inputSchema
+
+        assert schema["properties"]["depth"]["default"] == 0
+
+    def test_graph_search_limit_defaults_to_twenty(self):
+        """graph_search defaults limit to 20."""
+        search_tool = next(t for t in TOOLS if t.name == "graph_search")
+        schema = search_tool.inputSchema
+
+        assert schema["properties"]["limit"]["default"] == 20
+
+
+class TestGraphGetContextTool:
+    """Tests for graph_get_context tool definition."""
+
+    def test_graph_get_context_tool_exists(self):
+        """graph_get_context tool is defined."""
+        tool_names = {tool.name for tool in TOOLS}
+        assert "graph_get_context" in tool_names
+
+    def test_graph_get_context_has_required_fields(self):
+        """graph_get_context tool has correct schema."""
+        context_tool = next(t for t in TOOLS if t.name == "graph_get_context")
+        schema = context_tool.inputSchema
+
+        assert "entity_id" in schema["properties"]
+        assert "depth" in schema["properties"]
+        assert schema["required"] == ["entity_id"]
+
+    def test_graph_get_context_depth_defaults_to_one(self):
+        """graph_get_context defaults depth to 1 (direct neighbors)."""
+        context_tool = next(t for t in TOOLS if t.name == "graph_get_context")
+        schema = context_tool.inputSchema
+
+        assert schema["properties"]["depth"]["default"] == 1
+
+
+class TestGraphSearchHandler:
+    """Tests for graph_search tool handler."""
+
+    def test_handler_returns_error_for_missing_query(self):
+        """Handler returns error when query missing."""
+        result = handle_graph_search({})
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "query" in result.content[0].text
+
+
+class TestGraphGetContextHandler:
+    """Tests for graph_get_context tool handler."""
+
+    def test_handler_returns_error_for_missing_entity_id(self):
+        """Handler returns error when entity_id missing."""
+        result = handle_graph_get_context({})
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert "entity_id" in result.content[0].text
