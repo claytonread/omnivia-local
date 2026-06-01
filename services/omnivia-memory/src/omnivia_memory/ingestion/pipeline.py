@@ -36,10 +36,17 @@ class IngestionPipeline:
         self.extractors = extractors or {FileType.MARKDOWN: MarkdownExtractor()}
         self.chunker = chunker or ParagraphChunker()
         self.source_repository = source_repository
-        self.chunker_repository = chunk_repository
+        self.chunk_repository = chunk_repository
 
     def ingest_file(self, file_path: Path) -> IngestResult:
-        """Ingest a single file through the pipeline."""
+        """Ingest a single file through the pipeline.
+
+        The source record is persisted if source_repository is configured.
+        Chunks are linked to the persisted source ID for provenance tracking.
+
+        If the file was already ingested (same path), the existing source is returned
+        without re-processing to avoid duplicate records.
+        """
         try:
             file_type = self._get_file_type(file_path)
             if file_type == FileType.UNKNOWN:
@@ -53,6 +60,16 @@ class IngestionPipeline:
             if result.status != ParseStatus.SUCCESS:
                 return IngestResult(error=result.error)
 
+            # Check if source already exists (by path) to avoid duplicates
+            source = None
+            if self.source_repository:
+                existing = self.source_repository.get_by_path(str(file_path))
+                if existing is not None:
+                    # Source already ingested - return existing source with empty chunks
+                    # to indicate no new work was done
+                    return IngestResult(source=existing, chunks=[])
+
+            # Create new source record
             source = Source(
                 path=str(file_path),
                 file_type=file_type,
@@ -61,11 +78,22 @@ class IngestionPipeline:
                 status=ParseStatus.SUCCESS,
             )
 
+            # Persist source if repository is configured
+            if self.source_repository:
+                try:
+                    self.source_repository.create(source)
+                except ValueError:
+                    # Source with same ID already exists (race condition) - fetch and return
+                    existing = self.source_repository.get_by_id(source.id)
+                    if existing:
+                        source = existing
+
+            # Link chunks to the persisted source for provenance
             chunks = self.chunker.chunk("" if result.content is None else result.content, source.id)
 
-            if self.chunker_repository:
+            if self.chunk_repository:
                 for chunk in chunks:
-                    self.chunker_repository.create(chunk)
+                    self.chunk_repository.create(chunk)
 
             return IngestResult(source=source, chunks=chunks)
 

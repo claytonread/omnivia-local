@@ -834,3 +834,220 @@ class TestIngestionPipeline:
 
         # Verify at least one source was processed
         assert len(md_files) >= 1
+
+
+# =============================================================================
+# Test: Source Persistence in Pipeline
+# =============================================================================
+
+
+class TestSourcePersistence:
+    """Tests for source record persistence in the ingestion pipeline."""
+
+    @pytest.fixture
+    def temp_db_path(self):
+        """Create a temporary database path."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield Path(tmpdir) / "source_test.db"
+
+    @pytest.fixture
+    def db_with_sources_schema(self, temp_db_path):
+        """Create a database with sources and chunks schema for testing."""
+        import sqlite3
+
+        db_path = temp_db_path
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Create sources table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sources (
+                id TEXT PRIMARY KEY,
+                file_path TEXT NOT NULL,
+                extension TEXT,
+                size_bytes INTEGER,
+                modified_time TEXT,
+                file_type TEXT NOT NULL,
+                content_hash TEXT,
+                parse_status TEXT NOT NULL,
+                error_message TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sources_path ON sources(file_path)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sources_hash ON sources(content_hash)")
+
+        # Create chunks table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chunks (
+                id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                start_offset INTEGER NOT NULL,
+                end_offset INTEGER NOT NULL,
+                content_hash TEXT
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source_id)")
+        conn.commit()
+
+        yield conn
+
+        conn.close()
+
+    @pytest.fixture
+    def db_wrapper(self, db_with_sources_schema):
+        """Create a DB wrapper for repositories."""
+        conn = db_with_sources_schema
+
+        class DBWrapper:
+            def __init__(self, conn):
+                self._conn = conn
+                self.config = type("obj", (object,), {"auto_commit": True})()
+
+            def execute(self, query, params=None):
+                cursor = self._conn.cursor()
+                cursor.execute(query, params or ())
+                if self.config.auto_commit:
+                    self._conn.commit()
+                return cursor
+
+        return DBWrapper(conn)
+
+    @pytest.fixture
+    def source_repo(self, db_wrapper):
+        """Create a source repository."""
+        from omnivia_memory.ingestion.repositories import SourceRepository
+
+        return SourceRepository(db_wrapper)
+
+    @pytest.fixture
+    def chunk_repo(self, db_wrapper):
+        """Create a chunk repository."""
+        from omnivia_memory.ingestion.repositories import ChunkRepository
+
+        return ChunkRepository(db_wrapper)
+
+    def test_ingest_file_persists_source(self, sample_md, source_repo, chunk_repo):
+        """ingest_file() persists a source when source_repository is configured."""
+        from omnivia_memory.ingestion.pipeline import IngestionPipeline
+
+        pipeline = IngestionPipeline(
+            scanner=FileScanner(),
+            extractors={FileType.MARKDOWN: MarkdownExtractor()},
+            chunker=ParagraphChunker(),
+            source_repository=source_repo,
+            chunk_repository=chunk_repo,
+        )
+
+        result = pipeline.ingest_file(sample_md)
+
+        # Source should be persisted
+        assert result.source is not None
+        assert result.error is None
+
+        # Verify source exists in repository
+        retrieved = source_repo.get_by_id(result.source.id)
+        assert retrieved is not None
+        assert retrieved.path == str(sample_md)
+        assert retrieved.file_type == FileType.MARKDOWN
+
+    def test_chunks_linked_to_persisted_source(self, sample_md, source_repo, chunk_repo):
+        """Chunks are linked to the persisted source ID."""
+        from omnivia_memory.ingestion.pipeline import IngestionPipeline
+
+        pipeline = IngestionPipeline(
+            scanner=FileScanner(),
+            extractors={FileType.MARKDOWN: MarkdownExtractor()},
+            chunker=ParagraphChunker(),
+            source_repository=source_repo,
+            chunk_repository=chunk_repo,
+        )
+
+        result = pipeline.ingest_file(sample_md)
+
+        # Verify source was persisted
+        assert result.source is not None
+        source_id = result.source.id
+
+        # Get chunks from repository
+        chunks = chunk_repo.get_by_source_id(source_id)
+
+        # All chunks should reference the persisted source
+        assert len(chunks) > 0
+        for chunk in chunks:
+            assert chunk.source_id == source_id
+
+    def test_directory_ingestion_persists_sources(self, test_dir, source_repo, chunk_repo):
+        """Directory ingestion persists sources for discovered files."""
+        from omnivia_memory.ingestion.pipeline import IngestionPipeline
+
+        pipeline = IngestionPipeline(
+            scanner=FileScanner(),
+            extractors={FileType.MARKDOWN: MarkdownExtractor()},
+            chunker=ParagraphChunker(),
+            source_repository=source_repo,
+            chunk_repository=chunk_repo,
+        )
+
+        results = pipeline.ingest_directory(test_dir)
+
+        # Count successful ingestions with sources
+        successful_with_sources = [r for r in results if r.source is not None and r.chunks]
+        assert len(successful_with_sources) >= 1
+
+        # Verify sources were persisted in repository
+        all_sources = source_repo.list_all(limit=100)
+        assert len(all_sources) >= len(successful_with_sources)
+
+    def test_duplicate_ingestion_handled_predictably(self, sample_md, source_repo, chunk_repo):
+        """Duplicate/repeated ingestion is handled without crashing."""
+        from omnivia_memory.ingestion.pipeline import IngestionPipeline
+
+        pipeline = IngestionPipeline(
+            scanner=FileScanner(),
+            extractors={FileType.MARKDOWN: MarkdownExtractor()},
+            chunker=ParagraphChunker(),
+            source_repository=source_repo,
+            chunk_repository=chunk_repo,
+        )
+
+        # First ingestion
+        result1 = pipeline.ingest_file(sample_md)
+        assert result1.source is not None
+        assert result1.error is None
+
+        # Second ingestion of same file - should return existing source without error
+        result2 = pipeline.ingest_file(sample_md)
+        assert result2.source is not None
+        # Should return existing source (empty chunks)
+        assert result2.source.id == result1.source.id
+        assert len(result2.chunks) == 0  # No new chunks for existing source
+
+    def test_source_list_after_ingestion(self, sample_md, source_repo, chunk_repo):
+        """sources CLI can list persisted ingested sources."""
+        from omnivia_memory.ingestion.pipeline import IngestionPipeline
+
+        pipeline = IngestionPipeline(
+            scanner=FileScanner(),
+            extractors={FileType.MARKDOWN: MarkdownExtractor()},
+            chunker=ParagraphChunker(),
+            source_repository=source_repo,
+            chunk_repository=chunk_repo,
+        )
+
+        # Ingest file
+        result = pipeline.ingest_file(sample_md)
+        assert result.source is not None
+
+        # List all sources
+        sources = source_repo.list_all(limit=100)
+        assert len(sources) >= 1
+
+        # Verify source is queryable by path
+        by_path = source_repo.get_by_path(str(sample_md))
+        assert by_path is not None
+        assert by_path.id == result.source.id
