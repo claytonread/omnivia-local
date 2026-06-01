@@ -484,12 +484,16 @@ def cmd_ingest(args: argparse.Namespace) -> int:
                 results = pipeline.ingest_directory(path)
                 for result in results:
                     if result.error:
-                        errors.append(f"{result.source.path if result.source else 'unknown'}: {result.error}")
+                        errors.append(
+                            f"{result.source.path if result.source else 'unknown'}: {result.error}"
+                        )
                         continue
                     if result.source and result.chunks:
                         total_files += 1
                         # Use the source type specified by --source-type (default: file, use adr for ADRs)
-                        source_type = SourceType.ADR if args.source_type == "adr" else SourceType.FILE
+                        source_type = (
+                            SourceType.ADR if args.source_type == "adr" else SourceType.FILE
+                        )
                         for chunk in result.chunks:
                             memory_input = MemoryCreate(
                                 content=chunk.content,

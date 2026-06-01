@@ -367,6 +367,52 @@ class GraphService:
 
         return relationship
 
+    def reject_entity(self, entity_id: str) -> Entity:
+        """Reject an entity (transition to rejected state).
+
+        Args:
+            entity_id: The ID of the entity to reject
+
+        Returns:
+            The rejected entity
+
+        Raises:
+            EntityNotFoundError: If the entity doesn't exist
+            EntityValidationError: If the entity cannot be rejected
+        """
+        entity = self.get_entity(entity_id)
+
+        if entity.approval_status.value == "rejected":
+            raise EntityValidationError("Entity is already rejected")
+
+        entity.reject()
+
+        if self.entity_repository:
+            self.entity_repository.update(entity)
+
+        return entity
+
+    def reject_relationship(self, relationship_id: str) -> Relationship:
+        """Reject a relationship (transition to rejected state).
+
+        Args:
+            relationship_id: The ID of the relationship to reject
+
+        Returns:
+            The rejected relationship
+
+        Raises:
+            RelationshipNotFoundError: If the relationship doesn't exist
+        """
+        relationship = self.get_relationship(relationship_id)
+
+        relationship.reject()
+
+        if self.relationship_repository:
+            self.relationship_repository.update(relationship)
+
+        return relationship
+
     def delete_entity(self, entity_id: str) -> bool:
         """Delete an entity and all its relationships.
 
